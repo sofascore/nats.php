@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Sofascore\Nats\Tests\Integration;
 
 use Sofascore\Nats\Connection;
+use Sofascore\Nats\ConnectionOptions;
 use Sofascore\Nats\Headers;
 use Sofascore\Nats\Message;
 use Sofascore\Nats\TimeoutException;
@@ -15,10 +16,12 @@ final class RequestReplyTest extends TestCase
     use NatsUrlTrait;
 
     private Connection $conn;
+    private string $connectionName;
 
     protected function setUp(): void
     {
-        $this->conn = Connection::connect(self::natsUrl());
+        $this->connectionName = 'request-reply-test-' . uniqid();
+        $this->conn = Connection::connect(self::natsUrl(), new ConnectionOptions(name: $this->connectionName));
     }
 
     protected function tearDown(): void
@@ -106,6 +109,10 @@ final class RequestReplyTest extends TestCase
         }
 
         self::assertSame($before, $this->conn->numSubscriptions());
+        self::assertSame(
+            ['test.rr.silent.' . $id],
+            $this->waitForServerSubscriptions($this->connectionName, 1),
+        );
     }
 
     public function testRequestMessageTimeoutCleansUpSubscription(): void
@@ -125,6 +132,10 @@ final class RequestReplyTest extends TestCase
         }
 
         self::assertSame($before, $this->conn->numSubscriptions());
+        self::assertSame(
+            ['test.rr.silent.msg.' . $id],
+            $this->waitForServerSubscriptions($this->connectionName, 1),
+        );
     }
 
     public function testRequestReplyWithQueueGroup(): void
@@ -143,5 +154,40 @@ final class RequestReplyTest extends TestCase
         $reply = $this->conn->request('test.rr.queue', 'test', 2.0);
         self::assertStringStartsWith('from-', $reply->data);
         self::assertCount(1, $handledBy); // Only one worker responds
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function waitForServerSubscriptions(string $connectionName, int $expectedCount): array
+    {
+        $deadline = microtime(true) + 1.0;
+
+        do {
+            $connz = @file_get_contents('http://127.0.0.1:8222/connz?subs=1');
+            self::assertNotFalse($connz, 'Expected NATS monitoring endpoint on port 8222');
+
+            /** @var array{
+             *     connections?: list<array{name?: string, subscriptions_list?: list<string>}>
+             * } $payload
+             */
+            $payload = json_decode($connz, true, flags: JSON_THROW_ON_ERROR);
+
+            foreach ($payload['connections'] ?? [] as $connection) {
+                if (($connection['name'] ?? null) !== $connectionName) {
+                    continue;
+                }
+
+                $subscriptions = $connection['subscriptions_list'] ?? [];
+                if (count($subscriptions) === $expectedCount) {
+                    sort($subscriptions);
+                    return $subscriptions;
+                }
+            }
+
+            usleep(10_000);
+        } while (microtime(true) < $deadline);
+
+        self::fail("Timed out waiting for {$connectionName} to have {$expectedCount} server subscriptions");
     }
 }

@@ -206,7 +206,7 @@ final class Connection
 
             $msg = $sub->nextMessage($timeout);
         } catch (\Throwable $e) {
-            $sub->unsubscribe();
+            $this->cleanupRequestSubscription($sub);
             throw $e;
         }
 
@@ -244,7 +244,7 @@ final class Connection
 
             return $sub->nextMessage($timeout);
         } catch (\Throwable $e) {
-            $sub->unsubscribe();
+            $this->cleanupRequestSubscription($sub);
             throw $e;
         }
     }
@@ -891,6 +891,17 @@ final class Connection
     public function removeSubscription(string $sid): void
     {
         unset($this->subscriptions[$sid]);
+    }
+
+    private function cleanupRequestSubscription(Subscription $sub): void
+    {
+        $sub->unsubscribe();
+
+        try {
+            $this->flushWrite();
+        } catch (\Throwable) {
+            // Preserve the original request error; cleanup is best-effort.
+        }
     }
 
     /** @internal Report slow consumer to error handler (matches Go async error callback) */
