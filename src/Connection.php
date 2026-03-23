@@ -752,25 +752,16 @@ final class Connection
             return [$host];
         }
 
-        $ips = [];
+        // Use system resolver (respects /etc/hosts and NSS) for IPv4
+        $ips = gethostbynamel($host) ?: [];
 
-        // Query both A (IPv4) and AAAA (IPv6) records
-        $records = @dns_get_record($host, DNS_A | DNS_AAAA);
+        // Supplement with AAAA records for IPv6 support
+        $records = @dns_get_record($host, DNS_AAAA);
         if ($records !== false) {
             foreach ($records as $record) {
-                if (isset($record['ip']) && is_string($record['ip'])) {
-                    $ips[] = $record['ip'];
-                } elseif (isset($record['ipv6']) && is_string($record['ipv6'])) {
+                if (isset($record['ipv6']) && is_string($record['ipv6'])) {
                     $ips[] = $record['ipv6'];
                 }
-            }
-        }
-
-        // Fall back to gethostbynamel() (IPv4 only) if dns_get_record() failed
-        if ($ips === []) {
-            $ipv4 = gethostbynamel($host);
-            if ($ipv4 !== false) {
-                $ips = $ipv4;
             }
         }
 
