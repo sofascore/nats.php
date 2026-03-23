@@ -752,8 +752,29 @@ final class Connection
             return [$host];
         }
 
-        $ips = gethostbynamel($host);
-        if ($ips === false || $ips === []) {
+        $ips = [];
+
+        // Query both A (IPv4) and AAAA (IPv6) records
+        $records = @dns_get_record($host, DNS_A | DNS_AAAA);
+        if ($records !== false) {
+            foreach ($records as $record) {
+                if (isset($record['ip']) && is_string($record['ip'])) {
+                    $ips[] = $record['ip'];
+                } elseif (isset($record['ipv6']) && is_string($record['ipv6'])) {
+                    $ips[] = $record['ipv6'];
+                }
+            }
+        }
+
+        // Fall back to gethostbynamel() (IPv4 only) if dns_get_record() failed
+        if ($ips === []) {
+            $ipv4 = gethostbynamel($host);
+            if ($ipv4 !== false) {
+                $ips = $ipv4;
+            }
+        }
+
+        if ($ips === []) {
             $this->log('debug', 'DNS resolution for {host} failed, using hostname directly', ['host' => $host]);
             return [$host];
         }
