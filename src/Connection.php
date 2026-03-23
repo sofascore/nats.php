@@ -642,12 +642,18 @@ final class Connection
         $resolvedIps = $this->resolveHost($host);
         $lastError = null;
 
+        // Divide timeout equally across resolved IPs so total time per server
+        // never exceeds the configured timeout (matches nats.go behavior)
+        $perIpTimeout = count($resolvedIps) > 1
+            ? $this->options->timeout / count($resolvedIps)
+            : $this->options->timeout;
+
         foreach ($resolvedIps as $ip) {
             $addressHost = filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) ? "[{$ip}]" : $ip;
             $address = "tcp://{$addressHost}:{$port}";
 
             try {
-                $this->transport->connect($address, $this->options->timeout, $tlsContext);
+                $this->transport->connect($address, $perIpTimeout, $tlsContext);
                 $lastError = null;
                 break;
             } catch (NatsException $e) {
@@ -744,6 +750,10 @@ final class Connection
      */
     private function resolveHost(string $host): array
     {
+        if ($this->options->customHostResolver !== null) {
+            return ($this->options->customHostResolver)($host);
+        }
+
         if ($this->options->skipHostLookup) {
             return [$host];
         }
@@ -755,12 +765,14 @@ final class Connection
         // Use system resolver (respects /etc/hosts and NSS) for IPv4
         $ips = gethostbynamel($host) ?: [];
 
-        // Supplement with AAAA records for IPv6 support
-        $records = @dns_get_record($host, DNS_AAAA);
-        if ($records !== false) {
-            foreach ($records as $record) {
-                if (isset($record['ipv6']) && is_string($record['ipv6'])) {
-                    $ips[] = $record['ipv6'];
+        // Supplement with AAAA records for IPv6 support (guarded for hardened environments)
+        if (function_exists('dns_get_record')) {
+            $records = @dns_get_record($host, DNS_AAAA);
+            if ($records !== false) {
+                foreach ($records as $record) {
+                    if (isset($record['ipv6']) && is_string($record['ipv6'])) {
+                        $ips[] = $record['ipv6'];
+                    }
                 }
             }
         }
@@ -769,6 +781,8 @@ final class Connection
             $this->log('debug', 'DNS resolution for {host} failed, using hostname directly', ['host' => $host]);
             return [$host];
         }
+
+        $ips = array_values(array_unique($ips));
 
         $this->log('debug', 'Resolved {host} to {ips}', ['host' => $host, 'ips' => implode(', ', $ips)]);
         return $ips;

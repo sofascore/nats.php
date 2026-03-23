@@ -18,7 +18,7 @@ use PHPUnit\Framework\TestCase;
 final class ConnectionConnectTest extends TestCase
 {
     /**
-     * Create a Connection instance with a mock transport injected via reflection.
+     * Create a Connection with a mock transport injected via reflection.
      */
     private function createConnectionWithTransport(
         TransportInterface $transport,
@@ -51,27 +51,60 @@ final class ConnectionConnectTest extends TestCase
         $transport = new MockTransport();
         $conn = $this->createConnectionWithTransport($transport);
 
-        // Use IP directly so resolveHost() passes it through — no DNS needed
         $this->callConnectToServer($conn, 'nats://127.0.0.1:4222');
 
         self::assertSame(['tcp://127.0.0.1:4222'], $transport->connectAddresses);
     }
 
-    public function testConnectTriesNextIpOnFailure(): void
+    public function testMultiIpFailoverTriesAllAddresses(): void
     {
-        // Transport that fails on first address, succeeds on second
         $transport = new MockTransport(failAddresses: ['tcp://10.0.0.1:4222']);
         $conn = $this->createConnectionWithTransport(
             $transport,
-            new ConnectionOptions(skipHostLookup: true),
+            new ConnectionOptions(
+                customHostResolver: fn (string $host): array => ['10.0.0.1', '10.0.0.2'],
+            ),
         );
 
-        // With skipHostLookup, resolveHost returns the hostname as-is.
-        // To test multi-IP iteration, we need to call connectToServer with an IP
-        // that is in the fail list. Since skipHostLookup means no DNS, we test
-        // the single-attempt path here.
+        $this->callConnectToServer($conn, 'nats://my-server:4222');
+
+        self::assertSame([
+            'tcp://10.0.0.1:4222',
+            'tcp://10.0.0.2:4222',
+        ], $transport->connectAddresses);
+    }
+
+    public function testMultiIpFailoverSucceedsOnSecondIp(): void
+    {
+        $transport = new MockTransport(failAddresses: ['tcp://10.0.0.1:4222']);
+        $conn = $this->createConnectionWithTransport(
+            $transport,
+            new ConnectionOptions(
+                customHostResolver: fn (string $host): array => ['10.0.0.1', '10.0.0.2'],
+            ),
+        );
+
+        // Should not throw — second IP succeeds
+        $this->callConnectToServer($conn, 'nats://my-server:4222');
+
+        self::assertCount(2, $transport->connectAddresses);
+    }
+
+    public function testAllIpsFailThrowsException(): void
+    {
+        $transport = new MockTransport(failAddresses: [
+            'tcp://10.0.0.1:4222',
+            'tcp://10.0.0.2:4222',
+        ]);
+        $conn = $this->createConnectionWithTransport(
+            $transport,
+            new ConnectionOptions(
+                customHostResolver: fn (string $host): array => ['10.0.0.1', '10.0.0.2'],
+            ),
+        );
+
         $this->expectException(NatsException::class);
-        $this->callConnectToServer($conn, 'nats://10.0.0.1:4222');
+        $this->callConnectToServer($conn, 'nats://my-server:4222');
     }
 
     public function testTlsPeerNameSetToOriginalHostname(): void
@@ -88,7 +121,6 @@ final class ConnectionConnectTest extends TestCase
 
         $this->callConnectToServer($conn, 'nats://my-nats-server:4222');
 
-        // Verify peer_name was set to the original hostname
         self::assertNotNull($transport->lastTlsContext);
         self::assertArrayHasKey('peer_name', $transport->lastTlsContext);
         self::assertSame('my-nats-server', $transport->lastTlsContext['peer_name']);
@@ -116,6 +148,21 @@ final class ConnectionConnectTest extends TestCase
         self::assertSame('custom-peer', $transport->lastTlsContext['peer_name']);
     }
 
+    public function testTlsUpgradePeerNameSetToOriginalHostname(): void
+    {
+        $transport = new MockTransport(tlsRequired: true);
+        $conn = $this->createConnectionWithTransport(
+            $transport,
+            new ConnectionOptions(skipHostLookup: true),
+        );
+
+        $this->callConnectToServer($conn, 'nats://my-nats-server:4222');
+
+        self::assertNotNull($transport->lastUpgradeTlsContext);
+        self::assertArrayHasKey('peer_name', $transport->lastUpgradeTlsContext);
+        self::assertSame('my-nats-server', $transport->lastUpgradeTlsContext['peer_name']);
+    }
+
     public function testConnectDefaultPort(): void
     {
         $transport = new MockTransport();
@@ -124,6 +171,36 @@ final class ConnectionConnectTest extends TestCase
         $this->callConnectToServer($conn, 'nats://127.0.0.1');
 
         self::assertSame(['tcp://127.0.0.1:4222'], $transport->connectAddresses);
+    }
+
+    public function testTimeoutDividedAcrossResolvedIps(): void
+    {
+        $transport = new MockTransport(failAddresses: ['tcp://10.0.0.1:4222']);
+        $conn = $this->createConnectionWithTransport(
+            $transport,
+            new ConnectionOptions(
+                timeout: 4.0,
+                customHostResolver: fn (string $host): array => ['10.0.0.1', '10.0.0.2'],
+            ),
+        );
+
+        $this->callConnectToServer($conn, 'nats://my-server:4222');
+
+        // 2 IPs with 4s total → 2s per IP
+        self::assertSame([2.0, 2.0], $transport->connectTimeouts);
+    }
+
+    public function testSingleIpGetsFullTimeout(): void
+    {
+        $transport = new MockTransport();
+        $conn = $this->createConnectionWithTransport(
+            $transport,
+            new ConnectionOptions(timeout: 3.0),
+        );
+
+        $this->callConnectToServer($conn, 'nats://127.0.0.1:4222');
+
+        self::assertSame([3.0], $transport->connectTimeouts);
     }
 }
 
@@ -138,8 +215,14 @@ final class MockTransport implements TransportInterface
     /** @var list<string> All addresses passed to connect() */
     public array $connectAddresses = [];
 
+    /** @var list<float> All timeouts passed to connect() */
+    public array $connectTimeouts = [];
+
     /** @var array<string, mixed>|null Last TLS context passed to connect() */
     public ?array $lastTlsContext = null;
+
+    /** @var array<string, mixed>|null Last TLS context passed to upgradeTls() */
+    public ?array $lastUpgradeTlsContext = null;
 
     /** @var list<string> Buffered lines for readLine() */
     private array $readBuffer = [];
@@ -149,18 +232,19 @@ final class MockTransport implements TransportInterface
      */
     public function __construct(
         private readonly array $failAddresses = [],
+        private readonly bool $tlsRequired = false,
     ) {}
 
     public function connect(string $address, float $timeout, ?array $tlsContext = null): void
     {
         $this->connectAddresses[] = $address;
+        $this->connectTimeouts[] = $timeout;
         $this->lastTlsContext = $tlsContext;
 
         if (in_array($address, $this->failAddresses, true)) {
             throw new NatsException("Mock: connection refused to {$address}");
         }
 
-        // Queue up the NATS protocol handshake responses
         $info = json_encode([
             'server_id' => 'MOCK',
             'server_name' => 'mock-server',
@@ -168,7 +252,7 @@ final class MockTransport implements TransportInterface
             'proto' => 1,
             'max_payload' => 1_048_576,
             'headers' => true,
-            'tls_required' => false,
+            'tls_required' => $this->tlsRequired,
             'connect_urls' => [],
         ], JSON_THROW_ON_ERROR);
 
@@ -213,7 +297,10 @@ final class MockTransport implements TransportInterface
         return true;
     }
 
-    public function upgradeTls(array $tlsContext): void {}
+    public function upgradeTls(array $tlsContext): void
+    {
+        $this->lastUpgradeTlsContext = $tlsContext;
+    }
 
     public function getStreamResource(): mixed
     {
