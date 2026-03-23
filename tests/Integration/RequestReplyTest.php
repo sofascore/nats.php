@@ -91,6 +91,42 @@ final class RequestReplyTest extends TestCase
         }
     }
 
+    public function testRequestTimeoutCleansUpSubscription(): void
+    {
+        // Subscribe a silent responder that never replies
+        $this->conn->subscribe('test.rr.silent.' . ($id = uniqid()), function (Message $msg): void {
+            // intentionally do not respond
+        });
+
+        $before = $this->conn->numSubscriptions();
+
+        try {
+            $this->conn->request('test.rr.silent.' . $id, 'x', 0.2);
+        } catch (\Throwable) {
+        }
+
+        self::assertSame($before, $this->conn->numSubscriptions());
+    }
+
+    public function testRequestMessageTimeoutCleansUpSubscription(): void
+    {
+        $this->conn->subscribe('test.rr.silent.msg.' . ($id = uniqid()), function (Message $msg): void {
+            // intentionally do not respond
+        });
+
+        $before = $this->conn->numSubscriptions();
+
+        try {
+            $this->conn->requestMessage(
+                new Message(subject: 'test.rr.silent.msg.' . $id, data: 'x'),
+                0.2,
+            );
+        } catch (\Throwable) {
+        }
+
+        self::assertSame($before, $this->conn->numSubscriptions());
+    }
+
     public function testRequestReplyWithQueueGroup(): void
     {
         $handledBy = [];

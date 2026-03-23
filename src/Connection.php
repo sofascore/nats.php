@@ -200,15 +200,21 @@ final class Connection
         $sub = $this->subscribeSync($inbox);
         $sub->autoUnsubscribe(1);
 
-        $this->publish($subject, $data, $inbox);
-        $this->flushWrite();
+        try {
+            $this->publish($subject, $data, $inbox);
+            $this->flushWrite();
 
-        $msg = $sub->nextMessage($timeout);
+            $msg = $sub->nextMessage($timeout);
+        } catch (\Throwable $e) {
+            $sub->unsubscribe();
+            throw $e;
+        }
 
         // Check for no responders (status 503)
         if ($msg->headers !== null) {
             $status = $msg->headers->get('Status');
             if ($status !== null && str_starts_with(trim($status), '503')) {
+                $sub->unsubscribe();
                 throw new NatsException('No responders for subject: ' . $subject);
             }
         }
@@ -226,16 +232,21 @@ final class Connection
         $sub = $this->subscribeSync($inbox);
         $sub->autoUnsubscribe(1);
 
-        $request = new Message(
-            subject: $msg->subject,
-            data: $msg->data,
-            replyTo: $inbox,
-            headers: $msg->headers,
-        );
-        $this->publishMessage($request);
-        $this->flushWrite();
+        try {
+            $request = new Message(
+                subject: $msg->subject,
+                data: $msg->data,
+                replyTo: $inbox,
+                headers: $msg->headers,
+            );
+            $this->publishMessage($request);
+            $this->flushWrite();
 
-        return $sub->nextMessage($timeout);
+            return $sub->nextMessage($timeout);
+        } catch (\Throwable $e) {
+            $sub->unsubscribe();
+            throw $e;
+        }
     }
 
     // --- Connection lifecycle ---
