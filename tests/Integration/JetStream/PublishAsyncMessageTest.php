@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Nats\Tests\Integration\JetStream;
 
+use Nats\Tests\Integration\NatsUrlTrait;
 use Nats\Connection;
 use Nats\Headers;
 use Nats\JetStream\JetStreamContext;
@@ -13,13 +14,14 @@ use PHPUnit\Framework\TestCase;
 
 final class PublishAsyncMessageTest extends TestCase
 {
-    private const NATS_URL = 'nats://127.0.0.1:4222';
+    use NatsUrlTrait;
+
     private Connection $conn;
     private JetStreamContext $js;
 
     protected function setUp(): void
     {
-        $this->conn = Connection::connect(self::NATS_URL);
+        $this->conn = Connection::connect(self::natsUrl());
         $this->js = $this->conn->jetStream();
         try { $this->js->deleteStream('TEST_ASYNC_MSG'); } catch (\Throwable) {}
     }

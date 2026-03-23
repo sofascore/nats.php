@@ -9,11 +9,13 @@ use Nats\Enum\KeyValueOperation;
 use Nats\JetStream\JetStreamContext;
 use Nats\KeyValue\KeyValueConfig;
 use Nats\NatsException;
+use Nats\Tests\Integration\NatsUrlTrait;
 use PHPUnit\Framework\TestCase;
 
 final class KeyValueExtendedTest extends TestCase
 {
-    private const NATS_URL = 'nats://127.0.0.1:4222';
+    use NatsUrlTrait;
+
     private Connection $conn;
     private JetStreamContext $js;
     private string $bucket;
@@ -21,7 +23,7 @@ final class KeyValueExtendedTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->conn = Connection::connect(self::NATS_URL);
+        $this->conn = Connection::connect(self::natsUrl());
         $this->js = $this->conn->jetStream();
         $this->bucket = 'test-kvext-' . substr(uniqid(), -6);
         $this->bucket2 = 'test-kvext2-' . substr(uniqid(), -6);

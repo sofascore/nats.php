@@ -12,12 +12,13 @@ use PHPUnit\Framework\TestCase;
 
 final class RequestReplyTest extends TestCase
 {
-    private const NATS_URL = 'nats://127.0.0.1:4222';
+    use NatsUrlTrait;
+
     private Connection $conn;
 
     protected function setUp(): void
     {
-        $this->conn = Connection::connect(self::NATS_URL);
+        $this->conn = Connection::connect(self::natsUrl());
     }
 
     protected function tearDown(): void

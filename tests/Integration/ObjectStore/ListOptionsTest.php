@@ -7,17 +7,19 @@ namespace Nats\Tests\Integration\ObjectStore;
 use Nats\Connection;
 use Nats\JetStream\JetStreamContext;
 use Nats\ObjectStore\ObjectStoreConfig;
+use Nats\Tests\Integration\NatsUrlTrait;
 use PHPUnit\Framework\TestCase;
 
 final class ListOptionsTest extends TestCase
 {
-    private const NATS_URL = 'nats://127.0.0.1:4222';
+    use NatsUrlTrait;
+
     private Connection $conn;
     private JetStreamContext $js;
 
     protected function setUp(): void
     {
-        $this->conn = Connection::connect(self::NATS_URL);
+        $this->conn = Connection::connect(self::natsUrl());
         $this->js = $this->conn->jetStream();
         try { $this->js->deleteObjectStore('TEST_LIST_OPTS'); } catch (\Throwable) {}
     }

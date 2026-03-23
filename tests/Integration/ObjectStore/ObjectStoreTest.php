@@ -10,17 +10,19 @@ use Nats\JetStream\JetStreamContext;
 use Nats\ObjectStore\ObjectMeta;
 use Nats\ObjectStore\ObjectStoreConfig;
 use Nats\ObjectStore\ObjectStoreInterface;
+use Nats\Tests\Integration\NatsUrlTrait;
 use PHPUnit\Framework\TestCase;
 
 final class ObjectStoreTest extends TestCase
 {
-    private const NATS_URL = 'nats://127.0.0.1:4222';
+    use NatsUrlTrait;
+
     private Connection $conn;
     private JetStreamContext $js;
 
     protected function setUp(): void
     {
-        $this->conn = Connection::connect(self::NATS_URL);
+        $this->conn = Connection::connect(self::natsUrl());
         $this->js = $this->conn->jetStream();
         try { $this->js->deleteObjectStore('test-obj'); } catch (\Throwable) {}
     }
