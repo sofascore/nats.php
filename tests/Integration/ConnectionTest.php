@@ -11,11 +11,11 @@ use PHPUnit\Framework\TestCase;
 
 final class ConnectionTest extends TestCase
 {
-    private const NATS_URL = 'nats://127.0.0.1:4222';
+    use NatsUrlTrait;
 
     public function testConnectDefault(): void
     {
-        $conn = Connection::connect(self::NATS_URL);
+        $conn = Connection::connect(self::natsUrl());
 
         self::assertTrue($conn->isConnected());
         self::assertSame(ConnectionStatus::Connected, $conn->status());
@@ -31,7 +31,7 @@ final class ConnectionTest extends TestCase
     public function testConnectWithName(): void
     {
         $options = new ConnectionOptions(name: 'test-app');
-        $conn = Connection::connect(self::NATS_URL, $options);
+        $conn = Connection::connect(self::natsUrl(), $options);
 
         self::assertTrue($conn->isConnected());
         $conn->close();
@@ -58,17 +58,17 @@ final class ConnectionTest extends TestCase
         $badUrl = 'nats://user@:4222';
         $options = new ConnectionOptions(dontRandomize: true);
 
-        $conn = Connection::connect([$badUrl, self::NATS_URL], $options);
+        $conn = Connection::connect([$badUrl, self::natsUrl()], $options);
 
         self::assertTrue($conn->isConnected());
-        self::assertSame(self::NATS_URL, $conn->connectedUrl());
+        self::assertSame(self::natsUrl(), $conn->connectedUrl());
 
         $conn->close();
     }
 
     public function testFlush(): void
     {
-        $conn = Connection::connect(self::NATS_URL);
+        $conn = Connection::connect(self::natsUrl());
         $conn->flush(2.0);
         self::assertTrue($conn->isConnected());
         $conn->close();
@@ -76,7 +76,7 @@ final class ConnectionTest extends TestCase
 
     public function testServerInfo(): void
     {
-        $conn = Connection::connect(self::NATS_URL);
+        $conn = Connection::connect(self::natsUrl());
         $info = $conn->serverInfo();
 
         self::assertNotNull($info);
@@ -91,7 +91,7 @@ final class ConnectionTest extends TestCase
 
     public function testStats(): void
     {
-        $conn = Connection::connect(self::NATS_URL);
+        $conn = Connection::connect(self::natsUrl());
 
         $conn->publish('test.stats', 'hello');
         $conn->flush();
@@ -106,7 +106,7 @@ final class ConnectionTest extends TestCase
 
     public function testNewInbox(): void
     {
-        $conn = Connection::connect(self::NATS_URL);
+        $conn = Connection::connect(self::natsUrl());
 
         $inbox1 = $conn->newInbox();
         $inbox2 = $conn->newInbox();
@@ -120,7 +120,7 @@ final class ConnectionTest extends TestCase
 
     public function testCloseIsIdempotent(): void
     {
-        $conn = Connection::connect(self::NATS_URL);
+        $conn = Connection::connect(self::natsUrl());
         $conn->close();
         $conn->close(); // Does not throw exception
         self::assertTrue($conn->isClosed());
@@ -128,7 +128,7 @@ final class ConnectionTest extends TestCase
 
     public function testPublishAfterCloseThrows(): void
     {
-        $conn = Connection::connect(self::NATS_URL);
+        $conn = Connection::connect(self::natsUrl());
         $conn->close();
 
         $this->expectException(\Nats\ConnectionClosedException::class);
@@ -137,7 +137,7 @@ final class ConnectionTest extends TestCase
 
     public function testJetStreamAvailable(): void
     {
-        $conn = Connection::connect(self::NATS_URL);
+        $conn = Connection::connect(self::natsUrl());
         self::assertTrue($conn->jetStreamAvailable());
         $conn->close();
     }

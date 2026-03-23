@@ -8,16 +8,18 @@ use Nats\Connection;
 use Nats\Micro\EndpointConfig;
 use Nats\Micro\Service;
 use Nats\Micro\ServiceConfig;
+use Nats\Tests\Integration\NatsUrlTrait;
 use PHPUnit\Framework\TestCase;
 
 final class GroupQueueTest extends TestCase
 {
-    private const NATS_URL = 'nats://127.0.0.1:4222';
+    use NatsUrlTrait;
+
     private Connection $conn;
 
     protected function setUp(): void
     {
-        $this->conn = Connection::connect(self::NATS_URL);
+        $this->conn = Connection::connect(self::natsUrl());
     }
 
     protected function tearDown(): void

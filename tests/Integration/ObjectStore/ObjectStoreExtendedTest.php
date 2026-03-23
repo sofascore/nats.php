@@ -9,11 +9,13 @@ use Nats\Enum\StorageType;
 use Nats\JetStream\JetStreamContext;
 use Nats\NatsException;
 use Nats\ObjectStore\ObjectStoreConfig;
+use Nats\Tests\Integration\NatsUrlTrait;
 use PHPUnit\Framework\TestCase;
 
 final class ObjectStoreExtendedTest extends TestCase
 {
-    private const NATS_URL = 'nats://127.0.0.1:4222';
+    use NatsUrlTrait;
+
     private Connection $conn;
     private JetStreamContext $js;
     private string $bucket;
@@ -21,7 +23,7 @@ final class ObjectStoreExtendedTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->conn = Connection::connect(self::NATS_URL);
+        $this->conn = Connection::connect(self::natsUrl());
         $this->js = $this->conn->jetStream();
         $this->bucket = 'test-objext-' . substr(uniqid(), -6);
         $this->bucket2 = 'test-objext2-' . substr(uniqid(), -6);
