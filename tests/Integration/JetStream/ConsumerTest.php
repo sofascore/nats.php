@@ -167,6 +167,34 @@ final class ConsumerTest extends TestCase
         self::assertTrue(true); // No exceptions = success
     }
 
+    public function testAckPreventsRedelivery(): void
+    {
+        $this->js->publish('test.cons.ack', 'ack-test');
+
+        $consumer = $this->stream->createOrUpdateConsumer(new ConsumerConfig(
+            name: 'test-ack-no-redeliver',
+            durable: 'test-ack-no-redeliver',
+            ackPolicy: AckPolicy::Explicit,
+            maxDeliver: 3,
+            filterSubject: 'test.cons.ack',
+        ));
+
+        // nak causes redelivery
+        $msg = $consumer->next(3.0);
+        self::assertNotNull($msg);
+        $msg->nak();
+
+        $redelivered = $consumer->next(3.0);
+        self::assertNotNull($redelivered);
+        self::assertSame('ack-test', $redelivered->data());
+
+        // ack stops redelivery
+        $redelivered->ack();
+
+        $this->expectException(TimeoutException::class);
+        $consumer->next(1.0);
+    }
+
     public function testNakWithDelay(): void
     {
         $this->js->publish('test.cons.nakdelay', 'nak-delay-test');
