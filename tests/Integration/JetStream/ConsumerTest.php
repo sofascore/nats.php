@@ -16,6 +16,7 @@ use Sofascore\Nats\JetStream\Consumer\OrderedConsumerConfig;
 use Sofascore\Nats\JetStream\JetStreamContext;
 use Sofascore\Nats\JetStream\Stream\StreamConfig;
 use Sofascore\Nats\JetStream\Stream\StreamInterface;
+use Sofascore\Nats\TimeoutException;
 use PHPUnit\Framework\TestCase;
 
 final class ConsumerTest extends TestCase
@@ -164,6 +165,74 @@ final class ConsumerTest extends TestCase
         $msg->term();
 
         self::assertTrue(true); // No exceptions = success
+    }
+
+    public function testNakWithDelay(): void
+    {
+        $this->js->publish('test.cons.nakdelay', 'nak-delay-test');
+
+        $consumer = $this->stream->createOrUpdateConsumer(new ConsumerConfig(
+            name: 'test-nak-delay',
+            durable: 'test-nak-delay',
+            ackPolicy: AckPolicy::Explicit,
+            maxDeliver: 3,
+            filterSubject: 'test.cons.nakdelay',
+        ));
+
+        $msg = $consumer->next(3.0);
+        self::assertNotNull($msg);
+
+        $msg->nakWithDelay(1.0);
+
+        $redelivered = $consumer->next(5.0);
+        self::assertNotNull($redelivered);
+        self::assertSame('nak-delay-test', $redelivered->data());
+
+        $redelivered->ack();
+    }
+
+    public function testTerm(): void
+    {
+        $this->js->publish('test.cons.term', 'term-test');
+
+        $consumer = $this->stream->createOrUpdateConsumer(new ConsumerConfig(
+            name: 'test-term',
+            durable: 'test-term',
+            ackPolicy: AckPolicy::Explicit,
+            maxDeliver: 3,
+            filterSubject: 'test.cons.term',
+        ));
+
+        $msg = $consumer->next(3.0);
+        self::assertNotNull($msg);
+        self::assertSame('term-test', $msg->data());
+
+        $msg->term();
+
+        $this->expectException(TimeoutException::class);
+        $consumer->next(1.0);
+    }
+
+    public function testTermWithReason(): void
+    {
+        $this->js->publish('test.cons.termreason', 'term-reason-test');
+
+        $consumer = $this->stream->createOrUpdateConsumer(new ConsumerConfig(
+            name: 'test-term-reason',
+            durable: 'test-term-reason',
+            ackPolicy: AckPolicy::Explicit,
+            maxDeliver: 3,
+            filterSubject: 'test.cons.termreason',
+        ));
+
+        $msg = $consumer->next(3.0);
+        self::assertNotNull($msg);
+        self::assertSame('term-reason-test', $msg->data());
+
+        $msg->termWithReason('invalid payload');
+
+        $this->expectException(TimeoutException::class);
+        $consumer->next(1.0);
     }
 
     public function testMessagesIterator(): void
