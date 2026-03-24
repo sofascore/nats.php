@@ -9,13 +9,13 @@
 
 require_once __DIR__ . '/../../../vendor/autoload.php';
 
-use Nats\BadSubjectException;
-use Nats\Connection;
-use Nats\ConnectionOptions;
-use Nats\Headers;
-use Nats\MaxPayloadException;
-use Nats\Message;
-use Nats\SlowConsumerException;
+use Sofascore\Nats\BadSubjectException;
+use Sofascore\Nats\Connection;
+use Sofascore\Nats\ConnectionOptions;
+use Sofascore\Nats\Headers;
+use Sofascore\Nats\MaxPayloadException;
+use Sofascore\Nats\Message;
+use Sofascore\Nats\SlowConsumerException;
 
 // --- 1. Max payload enforcement ---
 // The client knows the server limit (sent in the INFO message at connect).

@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Nats\Protocol;
+namespace Sofascore\Nats\Protocol;
 
-use Nats\NatsException;
+use Sofascore\Nats\NatsException;
 
 final class Parser
 {

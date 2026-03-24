@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Nats\Tests\Integration;
+namespace Sofascore\Nats\Tests\Integration;
 
-use Nats\Connection;
-use Nats\Headers;
-use Nats\Message;
+use Sofascore\Nats\Connection;
+use Sofascore\Nats\Headers;
+use Sofascore\Nats\Message;
 use PHPUnit\Framework\TestCase;
 
 final class PubSubTest extends TestCase
@@ -207,7 +207,7 @@ final class PubSubTest extends TestCase
         for ($i = 0; $i < 5; $i++) {
             try {
                 $sub->nextMessage(0.5);
-            } catch (\Nats\TimeoutException) {
+            } catch (\Sofascore\Nats\TimeoutException) {
                 break;
             }
         }
@@ -221,7 +221,7 @@ final class PubSubTest extends TestCase
     {
         $sub = $this->conn->subscribeSync('test.timeout.empty');
 
-        $this->expectException(\Nats\TimeoutException::class);
+        $this->expectException(\Sofascore\Nats\TimeoutException::class);
         $sub->nextMessage(0.1);
     }
 }

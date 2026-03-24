@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Nats\JetStream;
+namespace Sofascore\Nats\JetStream;
 
 readonly class JetStreamOptions
 {

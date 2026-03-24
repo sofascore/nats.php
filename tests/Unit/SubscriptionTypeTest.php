@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Nats\Tests\Unit;
+namespace Sofascore\Nats\Tests\Unit;
 
-use Nats\Subscription;
+use Sofascore\Nats\Subscription;
 use PHPUnit\Framework\TestCase;
 
 final class SubscriptionTypeTest extends TestCase
@@ -14,7 +14,7 @@ final class SubscriptionTypeTest extends TestCase
         $ref = new \ReflectionClass(Subscription::class);
         $sub = $ref->newInstanceWithoutConstructor();
 
-        $conn = (new \ReflectionClass(\Nats\Connection::class))->newInstanceWithoutConstructor();
+        $conn = (new \ReflectionClass(\Sofascore\Nats\Connection::class))->newInstanceWithoutConstructor();
 
         foreach ([
             'connection' => $conn,

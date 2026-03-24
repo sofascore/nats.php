@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Nats\KeyValue;
+namespace Sofascore\Nats\KeyValue;
 
-use Nats\JetStream\Stream\Placement;
-use Nats\JetStream\Stream\RePublish;
-use Nats\JetStream\Stream\StreamSource;
+use Sofascore\Nats\JetStream\Stream\Placement;
+use Sofascore\Nats\JetStream\Stream\RePublish;
+use Sofascore\Nats\JetStream\Stream\StreamSource;
 
 readonly class KeyValueConfig
 {

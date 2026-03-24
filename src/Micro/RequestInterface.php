@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Nats\Micro;
+namespace Sofascore\Nats\Micro;
 
-use Nats\Headers;
-use Nats\Message;
+use Sofascore\Nats\Headers;
+use Sofascore\Nats\Message;
 
 interface RequestInterface
 {

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Nats\Enum;
+namespace Sofascore\Nats\Enum;
 
 enum ReplayPolicy: string
 {

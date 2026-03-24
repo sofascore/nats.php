@@ -8,8 +8,8 @@
 
 require_once __DIR__ . '/../../../vendor/autoload.php';
 
-use Nats\Connection;
-use Nats\Message;
+use Sofascore\Nats\Connection;
+use Sofascore\Nats\Message;
 
 $conn = Connection::connect();
 
@@ -31,7 +31,7 @@ echo "5 + 3 = {$result['result']}\n"; // 5 + 3 = 8
 
 // --- Request with headers ---
 
-$headers = new \Nats\Headers(['X-Request-Id' => 'req-001']);
+$headers = new \Sofascore\Nats\Headers(['X-Request-Id' => 'req-001']);
 $msg = new Message(
     subject: 'math.add',
     data: json_encode(['a' => 10, 'b' => 20]),

@@ -9,10 +9,10 @@
 
 require_once __DIR__ . '/../../../vendor/autoload.php';
 
-use Nats\Connection;
-use Nats\Enum\StorageType;
-use Nats\ObjectStore\ObjectMeta;
-use Nats\ObjectStore\ObjectStoreConfig;
+use Sofascore\Nats\Connection;
+use Sofascore\Nats\Enum\StorageType;
+use Sofascore\Nats\ObjectStore\ObjectMeta;
+use Sofascore\Nats\ObjectStore\ObjectStoreConfig;
 
 $conn = Connection::connect();
 $js = $conn->jetStream();
@@ -52,7 +52,7 @@ echo "Stored: {$info->name}\n";
 $meta = new ObjectMeta(
     name: 'report-2024.pdf',
     description: 'Annual report',
-    headers: new \Nats\Headers(['X-Author' => 'Team']),
+    headers: new \Sofascore\Nats\Headers(['X-Author' => 'Team']),
 );
 $info = $store->put($meta, 'PDF content here...');
 echo "Stored with meta: {$info->name}, desc={$info->description}\n";

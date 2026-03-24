@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Nats\JetStream\Message;
+namespace Sofascore\Nats\JetStream\Message;
 
 readonly class MessageMetadata
 {

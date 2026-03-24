@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Nats\Tests\Unit;
+namespace Sofascore\Nats\Tests\Unit;
 
-use Nats\Headers;
-use Nats\Message;
+use Sofascore\Nats\Headers;
+use Sofascore\Nats\Message;
 use PHPUnit\Framework\TestCase;
 
 final class MessageTest extends TestCase
@@ -64,7 +64,7 @@ final class MessageTest extends TestCase
     {
         $msg = new Message(subject: 'test', data: '');
 
-        $this->expectException(\Nats\NatsException::class);
+        $this->expectException(\Sofascore\Nats\NatsException::class);
         $this->expectExceptionMessage('No reply subject');
         $msg->respond('data');
     }

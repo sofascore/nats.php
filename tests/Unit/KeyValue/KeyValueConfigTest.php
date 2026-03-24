@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace Nats\Tests\Unit\KeyValue;
+namespace Sofascore\Nats\Tests\Unit\KeyValue;
 
-use Nats\JetStream\Stream\ExternalStream;
-use Nats\JetStream\Stream\RePublish;
-use Nats\JetStream\Stream\StreamSource;
-use Nats\JetStream\Stream\SubjectTransform;
-use Nats\KeyValue\KeyValueConfig;
+use Sofascore\Nats\JetStream\Stream\ExternalStream;
+use Sofascore\Nats\JetStream\Stream\RePublish;
+use Sofascore\Nats\JetStream\Stream\StreamSource;
+use Sofascore\Nats\JetStream\Stream\SubjectTransform;
+use Sofascore\Nats\KeyValue\KeyValueConfig;
 use PHPUnit\Framework\TestCase;
 
 final class KeyValueConfigTest extends TestCase

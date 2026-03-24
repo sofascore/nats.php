@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace Nats\JetStream\Consumer;
+namespace Sofascore\Nats\JetStream\Consumer;
 
-use Nats\Inbox;
-use Nats\Internal\TypeCast as T;
-use Nats\JetStream\JetStreamContext;
-use Nats\JetStream\Message\JetStreamMessage;
-use Nats\NatsException;
+use Sofascore\Nats\Inbox;
+use Sofascore\Nats\Internal\TypeCast as T;
+use Sofascore\Nats\JetStream\JetStreamContext;
+use Sofascore\Nats\JetStream\Message\JetStreamMessage;
+use Sofascore\Nats\NatsException;
 
 final class OrderedConsumer implements ConsumerInterface
 {
@@ -78,11 +78,11 @@ final class OrderedConsumer implements ConsumerInterface
         $consumerConfig = new ConsumerConfig(
             name: Inbox::nuid(),
             deliverPolicy: $this->cursor > 0
-                ? \Nats\Enum\DeliveryPolicy::ByStartSequence
+                ? \Sofascore\Nats\Enum\DeliveryPolicy::ByStartSequence
                 : $this->config->deliverPolicy,
             optStartSeq: $this->cursor > 0 ? $this->cursor + 1 : $this->config->optStartSeq,
             optStartTime: $this->config->optStartTime,
-            ackPolicy: \Nats\Enum\AckPolicy::None,
+            ackPolicy: \Sofascore\Nats\Enum\AckPolicy::None,
             maxDeliver: 1,
             maxAckPending: 0,
             headersOnly: $this->config->headersOnly,

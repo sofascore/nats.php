@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Nats\JetStream\Consumer;
+namespace Sofascore\Nats\JetStream\Consumer;
 
-use Nats\Enum\DeliveryPolicy;
-use Nats\Enum\ReplayPolicy;
+use Sofascore\Nats\Enum\DeliveryPolicy;
+use Sofascore\Nats\Enum\ReplayPolicy;
 
 readonly class OrderedConsumerConfig
 {

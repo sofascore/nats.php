@@ -2,20 +2,20 @@
 
 declare(strict_types=1);
 
-namespace Nats\ObjectStore;
+namespace Sofascore\Nats\ObjectStore;
 
-use Nats\Enum\DeliveryPolicy;
-use Nats\Internal\TypeCast as T;
-use Nats\Enum\StoreCompression;
-use Nats\Headers;
-use Nats\Inbox;
-use Nats\JetStream\Consumer\ConsumerConfig;
-use Nats\JetStream\JetStreamContext;
-use Nats\JetStream\Message\JetStreamMsg;
-use Nats\JetStream\Stream\StreamConfig;
-use Nats\KeyValue\WatchOptions;
-use Nats\Message;
-use Nats\NatsException;
+use Sofascore\Nats\Enum\DeliveryPolicy;
+use Sofascore\Nats\Internal\TypeCast as T;
+use Sofascore\Nats\Enum\StoreCompression;
+use Sofascore\Nats\Headers;
+use Sofascore\Nats\Inbox;
+use Sofascore\Nats\JetStream\Consumer\ConsumerConfig;
+use Sofascore\Nats\JetStream\JetStreamContext;
+use Sofascore\Nats\JetStream\Message\JetStreamMsg;
+use Sofascore\Nats\JetStream\Stream\StreamConfig;
+use Sofascore\Nats\KeyValue\WatchOptions;
+use Sofascore\Nats\Message;
+use Sofascore\Nats\NatsException;
 
 final class ObjectStore implements ObjectStoreInterface
 {
@@ -89,7 +89,7 @@ final class ObjectStore implements ObjectStoreInterface
         try {
             $existing = $this->getObjectInfo($name);
             if (!$existing->deleted && $existing->nuid !== '') {
-                $jsStream->purge(new \Nats\JetStream\Stream\StreamPurgeOptions(
+                $jsStream->purge(new \Sofascore\Nats\JetStream\Stream\StreamPurgeOptions(
                     filter: "\$O.{$this->bucketName}.C.{$existing->nuid}",
                 ));
             }
@@ -153,7 +153,7 @@ final class ObjectStore implements ObjectStoreInterface
             $this->js->publishMessage($msg);
         } catch (\Throwable $e) {
             try {
-                $jsStream->purge(new \Nats\JetStream\Stream\StreamPurgeOptions(
+                $jsStream->purge(new \Sofascore\Nats\JetStream\Stream\StreamPurgeOptions(
                     filter: $chunkSubject,
                 ));
             } catch (\Throwable) {
@@ -243,7 +243,7 @@ final class ObjectStore implements ObjectStoreInterface
 
         // Purge chunks
         $stream = $this->js->stream("OBJ_{$this->bucketName}");
-        $stream->purge(new \Nats\JetStream\Stream\StreamPurgeOptions(
+        $stream->purge(new \Sofascore\Nats\JetStream\Stream\StreamPurgeOptions(
             filter: "\$O.{$this->bucketName}.C.{$info->nuid}",
         ));
 
@@ -517,7 +517,7 @@ final class ObjectStore implements ObjectStoreInterface
             $existing = $this->getObjectInfo($name);
             if (!$existing->deleted && $existing->nuid !== '') {
                 $stream = $this->js->stream("OBJ_{$this->bucketName}");
-                $stream->purge(new \Nats\JetStream\Stream\StreamPurgeOptions(
+                $stream->purge(new \Sofascore\Nats\JetStream\Stream\StreamPurgeOptions(
                     filter: "\$O.{$this->bucketName}.C.{$existing->nuid}",
                 ));
             }

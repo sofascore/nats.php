@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Nats\Auth;
+namespace Sofascore\Nats\Auth;
 
 readonly class TokenAuthenticator implements AuthenticatorInterface
 {

@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Nats\Tests\Unit;
+namespace Sofascore\Nats\Tests\Unit;
 
-use Nats\Connection;
-use Nats\Message;
-use Nats\Subscription;
+use Sofascore\Nats\Connection;
+use Sofascore\Nats\Message;
+use Sofascore\Nats\Subscription;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -60,7 +60,7 @@ final class SubscriptionLimitsTest extends TestCase
 
         // Initialize required properties so reportSlowConsumer doesn't blow up
         $optionsProp = $ref->getProperty('options');
-        $optionsProp->setValue($conn, new \Nats\ConnectionOptions());
+        $optionsProp->setValue($conn, new \Sofascore\Nats\ConnectionOptions());
 
         $lastErrorProp = $ref->getProperty('lastError');
         $lastErrorProp->setValue($conn, null);
@@ -188,14 +188,14 @@ final class SubscriptionLimitsTest extends TestCase
         $lastErrorProp->setValue($conn, null);
 
         // Set options and error handler
-        $options = new \Nats\ConnectionOptions();
+        $options = new \Sofascore\Nats\ConnectionOptions();
         $optionsProp = $ref->getProperty('options');
         $optionsProp->setValue($conn, $options);
 
         $errorHandlerProp = $ref->getProperty('onErrorHandler');
         $errorHandlerProp->setValue($conn, function ($c, $err) use (&$reported): void {
             $reported = true;
-            self::assertInstanceOf(\Nats\SlowConsumerException::class, $err);
+            self::assertInstanceOf(\Sofascore\Nats\SlowConsumerException::class, $err);
         });
 
         $sub = $this->createSubscription($conn);

@@ -2,30 +2,30 @@
 
 declare(strict_types=1);
 
-namespace Nats\JetStream;
+namespace Sofascore\Nats\JetStream;
 
-use Nats\Connection;
-use Nats\Enum\StoreCompression;
-use Nats\Headers;
-use Nats\Internal\TypeCast as T;
-use Nats\JetStream\Consumer\Consumer;
-use Nats\JetStream\Consumer\ConsumerConfig;
-use Nats\JetStream\Consumer\ConsumerInfo;
-use Nats\JetStream\Consumer\ConsumerInterface;
-use Nats\JetStream\Consumer\OrderedConsumer;
-use Nats\JetStream\Consumer\OrderedConsumerConfig;
-use Nats\JetStream\Consumer\PushConsumer;
-use Nats\JetStream\Consumer\PushConsumerInterface;
-use Nats\JetStream\Error\JetStreamException;
-use Nats\JetStream\Publish\PubAck;
-use Nats\JetStream\Publish\PubAckFuture;
-use Nats\JetStream\Publish\PublishOptions;
-use Nats\JetStream\Stream\Stream;
-use Nats\JetStream\Stream\StreamConfig;
-use Nats\JetStream\Stream\StreamInfo;
-use Nats\JetStream\Stream\StreamInterface;
-use Nats\Message;
-use Nats\NatsException;
+use Sofascore\Nats\Connection;
+use Sofascore\Nats\Enum\StoreCompression;
+use Sofascore\Nats\Headers;
+use Sofascore\Nats\Internal\TypeCast as T;
+use Sofascore\Nats\JetStream\Consumer\Consumer;
+use Sofascore\Nats\JetStream\Consumer\ConsumerConfig;
+use Sofascore\Nats\JetStream\Consumer\ConsumerInfo;
+use Sofascore\Nats\JetStream\Consumer\ConsumerInterface;
+use Sofascore\Nats\JetStream\Consumer\OrderedConsumer;
+use Sofascore\Nats\JetStream\Consumer\OrderedConsumerConfig;
+use Sofascore\Nats\JetStream\Consumer\PushConsumer;
+use Sofascore\Nats\JetStream\Consumer\PushConsumerInterface;
+use Sofascore\Nats\JetStream\Error\JetStreamException;
+use Sofascore\Nats\JetStream\Publish\PubAck;
+use Sofascore\Nats\JetStream\Publish\PubAckFuture;
+use Sofascore\Nats\JetStream\Publish\PublishOptions;
+use Sofascore\Nats\JetStream\Stream\Stream;
+use Sofascore\Nats\JetStream\Stream\StreamConfig;
+use Sofascore\Nats\JetStream\Stream\StreamInfo;
+use Sofascore\Nats\JetStream\Stream\StreamInterface;
+use Sofascore\Nats\Message;
+use Sofascore\Nats\NatsException;
 
 final class JetStreamContext
 {
@@ -426,14 +426,14 @@ final class JetStreamContext
 
     // --- KeyValue ---
 
-    public function createKeyValue(\Nats\KeyValue\KeyValueConfig $config): \Nats\KeyValue\KeyValue
+    public function createKeyValue(\Sofascore\Nats\KeyValue\KeyValueConfig $config): \Sofascore\Nats\KeyValue\KeyValue
     {
         $streamConfig = $this->buildKvStreamConfig($config);
         $this->createStream($streamConfig);
-        return new \Nats\KeyValue\KeyValue($this, $config->bucket);
+        return new \Sofascore\Nats\KeyValue\KeyValue($this, $config->bucket);
     }
 
-    public function createOrUpdateKeyValue(\Nats\KeyValue\KeyValueConfig $config): \Nats\KeyValue\KeyValue
+    public function createOrUpdateKeyValue(\Sofascore\Nats\KeyValue\KeyValueConfig $config): \Sofascore\Nats\KeyValue\KeyValue
     {
         $streamConfig = $this->buildKvStreamConfig($config);
 
@@ -443,21 +443,21 @@ final class JetStreamContext
             $this->createStream($streamConfig);
         }
 
-        return new \Nats\KeyValue\KeyValue($this, $config->bucket);
+        return new \Sofascore\Nats\KeyValue\KeyValue($this, $config->bucket);
     }
 
-    public function updateKeyValue(\Nats\KeyValue\KeyValueConfig $config): \Nats\KeyValue\KeyValue
+    public function updateKeyValue(\Sofascore\Nats\KeyValue\KeyValueConfig $config): \Sofascore\Nats\KeyValue\KeyValue
     {
         $streamConfig = $this->buildKvStreamConfig($config);
         $this->updateStream($streamConfig);
-        return new \Nats\KeyValue\KeyValue($this, $config->bucket);
+        return new \Sofascore\Nats\KeyValue\KeyValue($this, $config->bucket);
     }
 
-    public function keyValue(string $bucket): \Nats\KeyValue\KeyValue
+    public function keyValue(string $bucket): \Sofascore\Nats\KeyValue\KeyValue
     {
         // Verify stream exists
         $this->apiRequest("STREAM.INFO.KV_{$bucket}");
-        return new \Nats\KeyValue\KeyValue($this, $bucket);
+        return new \Sofascore\Nats\KeyValue\KeyValue($this, $bucket);
     }
 
     public function deleteKeyValue(string $bucket): void
@@ -475,25 +475,25 @@ final class JetStreamContext
         }
     }
 
-    /** @return \Generator<\Nats\KeyValue\KeyValueStatus> */
+    /** @return \Generator<\Sofascore\Nats\KeyValue\KeyValueStatus> */
     public function keyValueStores(): \Generator
     {
         foreach ($this->keyValueStoreNames() as $bucket) {
-            $kv = new \Nats\KeyValue\KeyValue($this, $bucket);
+            $kv = new \Sofascore\Nats\KeyValue\KeyValue($this, $bucket);
             yield $kv->status();
         }
     }
 
     // --- ObjectStore ---
 
-    public function createObjectStore(\Nats\ObjectStore\ObjectStoreConfig $config): \Nats\ObjectStore\ObjectStore
+    public function createObjectStore(\Sofascore\Nats\ObjectStore\ObjectStoreConfig $config): \Sofascore\Nats\ObjectStore\ObjectStore
     {
         $streamConfig = $this->buildObjStreamConfig($config);
         $this->createStream($streamConfig);
-        return new \Nats\ObjectStore\ObjectStore($this, $config->bucket, $config->maxChunkSize ?? 131072);
+        return new \Sofascore\Nats\ObjectStore\ObjectStore($this, $config->bucket, $config->maxChunkSize ?? 131072);
     }
 
-    public function createOrUpdateObjectStore(\Nats\ObjectStore\ObjectStoreConfig $config): \Nats\ObjectStore\ObjectStore
+    public function createOrUpdateObjectStore(\Sofascore\Nats\ObjectStore\ObjectStoreConfig $config): \Sofascore\Nats\ObjectStore\ObjectStore
     {
         $streamConfig = $this->buildObjStreamConfig($config);
 
@@ -503,20 +503,20 @@ final class JetStreamContext
             $this->createStream($streamConfig);
         }
 
-        return new \Nats\ObjectStore\ObjectStore($this, $config->bucket, $config->maxChunkSize ?? 131072);
+        return new \Sofascore\Nats\ObjectStore\ObjectStore($this, $config->bucket, $config->maxChunkSize ?? 131072);
     }
 
-    public function updateObjectStore(\Nats\ObjectStore\ObjectStoreConfig $config): \Nats\ObjectStore\ObjectStore
+    public function updateObjectStore(\Sofascore\Nats\ObjectStore\ObjectStoreConfig $config): \Sofascore\Nats\ObjectStore\ObjectStore
     {
         $streamConfig = $this->buildObjStreamConfig($config);
         $this->updateStream($streamConfig);
-        return new \Nats\ObjectStore\ObjectStore($this, $config->bucket, $config->maxChunkSize ?? 131072);
+        return new \Sofascore\Nats\ObjectStore\ObjectStore($this, $config->bucket, $config->maxChunkSize ?? 131072);
     }
 
-    public function objectStore(string $bucket): \Nats\ObjectStore\ObjectStore
+    public function objectStore(string $bucket): \Sofascore\Nats\ObjectStore\ObjectStore
     {
         $this->apiRequest("STREAM.INFO.OBJ_{$bucket}");
-        return new \Nats\ObjectStore\ObjectStore($this, $bucket);
+        return new \Sofascore\Nats\ObjectStore\ObjectStore($this, $bucket);
     }
 
     public function deleteObjectStore(string $bucket): void
@@ -534,11 +534,11 @@ final class JetStreamContext
         }
     }
 
-    /** @return \Generator<\Nats\ObjectStore\ObjectStoreStatus> */
+    /** @return \Generator<\Sofascore\Nats\ObjectStore\ObjectStoreStatus> */
     public function objectStores(): \Generator
     {
         foreach ($this->objectStoreNames() as $bucket) {
-            $os = new \Nats\ObjectStore\ObjectStore($this, $bucket);
+            $os = new \Sofascore\Nats\ObjectStore\ObjectStore($this, $bucket);
             yield $os->status();
         }
     }
@@ -577,7 +577,7 @@ final class JetStreamContext
 
     // --- Private helpers ---
 
-    private function buildKvStreamConfig(\Nats\KeyValue\KeyValueConfig $config): StreamConfig
+    private function buildKvStreamConfig(\Sofascore\Nats\KeyValue\KeyValueConfig $config): StreamConfig
     {
         $streamName = "KV_{$config->bucket}";
 
@@ -589,8 +589,8 @@ final class JetStreamContext
             maxBytes: $config->maxBytes,
             maxMsgSize: $config->maxValueSize,
             maxMessagesPerSubject: $config->history,
-            storage: \Nats\Enum\StorageType::File,
-            discard: \Nats\Enum\DiscardPolicy::New,
+            storage: \Sofascore\Nats\Enum\StorageType::File,
+            discard: \Sofascore\Nats\Enum\DiscardPolicy::New,
             replicas: $config->replicas,
             mirror: $config->mirror,
             sources: $config->sources,
@@ -607,7 +607,7 @@ final class JetStreamContext
         );
     }
 
-    private function buildObjStreamConfig(\Nats\ObjectStore\ObjectStoreConfig $config): StreamConfig
+    private function buildObjStreamConfig(\Sofascore\Nats\ObjectStore\ObjectStoreConfig $config): StreamConfig
     {
         $streamName = "OBJ_{$config->bucket}";
         $chunkSubject = "\$O.{$config->bucket}.C.>";

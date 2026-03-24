@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Nats\KeyValue;
+namespace Sofascore\Nats\KeyValue;
 
 final class WatchOptions
 {

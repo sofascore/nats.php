@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace Nats\Tests\Integration\JetStream;
+namespace Sofascore\Nats\Tests\Integration\JetStream;
 
-use Nats\Tests\Integration\NatsUrlTrait;
-use Nats\Connection;
-use Nats\JetStream\JetStreamContext;
-use Nats\JetStream\Stream\StreamConfig;
+use Sofascore\Nats\Tests\Integration\NatsUrlTrait;
+use Sofascore\Nats\Connection;
+use Sofascore\Nats\JetStream\JetStreamContext;
+use Sofascore\Nats\JetStream\Stream\StreamConfig;
 use PHPUnit\Framework\TestCase;
 
 final class DirectGetTest extends TestCase

@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Nats\Transport;
+namespace Sofascore\Nats\Transport;
 
-use Nats\NatsException;
+use Sofascore\Nats\NatsException;
 
 final class TcpTransport implements TransportInterface
 {

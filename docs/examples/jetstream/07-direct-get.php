@@ -11,8 +11,8 @@
 
 require_once __DIR__ . '/../../../vendor/autoload.php';
 
-use Nats\Connection;
-use Nats\JetStream\Stream\StreamConfig;
+use Sofascore\Nats\Connection;
+use Sofascore\Nats\JetStream\Stream\StreamConfig;
 
 $conn = Connection::connect();
 $js = $conn->jetStream();
@@ -82,7 +82,7 @@ echo "Bob: {$msg->data}\n";
 
 try {
     $stream->directGet('cache.user.nonexistent');
-} catch (\Nats\NatsException $e) {
+} catch (\Sofascore\Nats\NatsException $e) {
     echo "\nNot found: {$e->getMessage()}\n";
 }
 

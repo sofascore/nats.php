@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace Nats\Tests\Unit;
+namespace Sofascore\Nats\Tests\Unit;
 
-use Nats\Connection;
-use Nats\ConnectionOptions;
-use Nats\NatsException;
-use Nats\Protocol\Parser;
-use Nats\Protocol\Writer;
-use Nats\Transport\TransportInterface;
+use Sofascore\Nats\Connection;
+use Sofascore\Nats\ConnectionOptions;
+use Sofascore\Nats\NatsException;
+use Sofascore\Nats\Protocol\Parser;
+use Sofascore\Nats\Protocol\Writer;
+use Sofascore\Nats\Transport\TransportInterface;
 use PHPUnit\Framework\TestCase;
 
 /**

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Nats\Transport;
+namespace Sofascore\Nats\Transport;
 
 interface TransportInterface
 {

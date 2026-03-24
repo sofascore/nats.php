@@ -2,6 +2,6 @@
 
 declare(strict_types=1);
 
-namespace Nats;
+namespace Sofascore\Nats;
 
 class BadSubjectException extends NatsException {}

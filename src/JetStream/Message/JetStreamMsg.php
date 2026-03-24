@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace Nats\JetStream\Message;
+namespace Sofascore\Nats\JetStream\Message;
 
-use Nats\Connection;
-use Nats\Headers;
-use Nats\Message;
-use Nats\NatsException;
+use Sofascore\Nats\Connection;
+use Sofascore\Nats\Headers;
+use Sofascore\Nats\Message;
+use Sofascore\Nats\NatsException;
 
 final class JetStreamMsg implements JetStreamMessage
 {

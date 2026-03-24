@@ -8,8 +8,8 @@
 
 require_once __DIR__ . '/../../../vendor/autoload.php';
 
-use Nats\Connection;
-use Nats\KeyValue\KeyValueConfig;
+use Sofascore\Nats\Connection;
+use Sofascore\Nats\KeyValue\KeyValueConfig;
 
 $conn = Connection::connect();
 $js = $conn->jetStream();
@@ -40,7 +40,7 @@ echo "  timestamp={$entry->timestamp->format('c')}\n";
 try {
     $rev = $kv->create('language', 'hr');
     echo "Created 'language', revision: {$rev}\n";
-} catch (\Nats\NatsException $e) {
+} catch (\Sofascore\Nats\NatsException $e) {
     echo "Create failed: {$e->getMessage()}\n";
 }
 
@@ -53,7 +53,7 @@ echo "Updated 'theme' to 'light', new revision: {$newRev}\n";
 // CAS failure: old revision
 try {
     $kv->update('theme', 'blue', $currentEntry->revision); // Old revision!
-} catch (\Nats\NatsException $e) {
+} catch (\Sofascore\Nats\NatsException $e) {
     echo "CAS conflict: {$e->getMessage()}\n";
 }
 

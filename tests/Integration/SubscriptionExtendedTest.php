@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Nats\Tests\Integration;
+namespace Sofascore\Nats\Tests\Integration;
 
-use Nats\Connection;
+use Sofascore\Nats\Connection;
 use PHPUnit\Framework\TestCase;
 
 final class SubscriptionExtendedTest extends TestCase

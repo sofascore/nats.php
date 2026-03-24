@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace Nats\Tests\Integration;
+namespace Sofascore\Nats\Tests\Integration;
 
 require_once dirname(__DIR__) . '/Unit/PsrLoggerStub.php';
 
-use Nats\Connection;
-use Nats\ConnectionOptions;
+use Sofascore\Nats\Connection;
+use Sofascore\Nats\ConnectionOptions;
 use PHPUnit\Framework\TestCase;
 
 final class ConnectionExtendedTest extends TestCase

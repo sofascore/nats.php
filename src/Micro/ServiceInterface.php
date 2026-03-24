@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Nats\Micro;
+namespace Sofascore\Nats\Micro;
 
 interface ServiceInterface
 {

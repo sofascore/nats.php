@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Nats\ObjectStore;
+namespace Sofascore\Nats\ObjectStore;
 
-use Nats\JetStream\Stream\StreamInfo;
+use Sofascore\Nats\JetStream\Stream\StreamInfo;
 
 readonly class ObjectStoreStatus
 {

@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace Nats\Tests\Integration\Micro;
+namespace Sofascore\Nats\Tests\Integration\Micro;
 
-use Nats\Connection;
-use Nats\Micro\EndpointConfig;
-use Nats\Micro\HandlerInterface;
-use Nats\Micro\RequestInterface;
-use Nats\Micro\Service;
-use Nats\Micro\ServiceConfig;
-use Nats\Tests\Integration\NatsUrlTrait;
+use Sofascore\Nats\Connection;
+use Sofascore\Nats\Micro\EndpointConfig;
+use Sofascore\Nats\Micro\HandlerInterface;
+use Sofascore\Nats\Micro\RequestInterface;
+use Sofascore\Nats\Micro\Service;
+use Sofascore\Nats\Micro\ServiceConfig;
+use Sofascore\Nats\Tests\Integration\NatsUrlTrait;
 use PHPUnit\Framework\TestCase;
 
 final class ServiceTest extends TestCase

@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace Nats;
+namespace Sofascore\Nats;
 
-use Nats\Auth\AuthenticatorInterface;
-use Nats\Auth\CredentialsAuthenticator;
-use Nats\Auth\JwtAuthenticator;
-use Nats\Auth\NKeyAuthenticator;
-use Nats\Auth\TokenAuthenticator;
-use Nats\Auth\UserPassAuthenticator;
+use Sofascore\Nats\Auth\AuthenticatorInterface;
+use Sofascore\Nats\Auth\CredentialsAuthenticator;
+use Sofascore\Nats\Auth\JwtAuthenticator;
+use Sofascore\Nats\Auth\NKeyAuthenticator;
+use Sofascore\Nats\Auth\TokenAuthenticator;
+use Sofascore\Nats\Auth\UserPassAuthenticator;
 
 final readonly class ConnectionOptions
 {

@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace Nats\JetStream\Stream;
+namespace Sofascore\Nats\JetStream\Stream;
 
-use Nats\JetStream\Consumer\ConsumerConfig;
-use Nats\JetStream\Consumer\ConsumerInterface;
-use Nats\JetStream\Consumer\ConsumerPauseResponse;
-use Nats\JetStream\Consumer\OrderedConsumerConfig;
+use Sofascore\Nats\JetStream\Consumer\ConsumerConfig;
+use Sofascore\Nats\JetStream\Consumer\ConsumerInterface;
+use Sofascore\Nats\JetStream\Consumer\ConsumerPauseResponse;
+use Sofascore\Nats\JetStream\Consumer\OrderedConsumerConfig;
 
 interface StreamInterface
 {

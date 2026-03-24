@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Nats\Tests\Unit\JetStream\Stream;
+namespace Sofascore\Nats\Tests\Unit\JetStream\Stream;
 
-use Nats\JetStream\Stream\StreamSourceInfo;
-use Nats\JetStream\Stream\SubjectTransform;
+use Sofascore\Nats\JetStream\Stream\StreamSourceInfo;
+use Sofascore\Nats\JetStream\Stream\SubjectTransform;
 use PHPUnit\Framework\TestCase;
 
 final class StreamSourceInfoTest extends TestCase

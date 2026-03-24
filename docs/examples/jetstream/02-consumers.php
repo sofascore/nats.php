@@ -9,15 +9,15 @@
 
 require_once __DIR__ . '/../../../vendor/autoload.php';
 
-use Nats\Connection;
-use Nats\Enum\AckPolicy;
-use Nats\Enum\DeliveryPolicy;
-use Nats\JetStream\Consumer\ConsumerConfig;
-use Nats\JetStream\Consumer\ConsumeOptions;
-use Nats\JetStream\Consumer\FetchOptions;
-use Nats\JetStream\Consumer\OrderedConsumerConfig;
-use Nats\JetStream\Message\JetStreamMessage;
-use Nats\JetStream\Stream\StreamConfig;
+use Sofascore\Nats\Connection;
+use Sofascore\Nats\Enum\AckPolicy;
+use Sofascore\Nats\Enum\DeliveryPolicy;
+use Sofascore\Nats\JetStream\Consumer\ConsumerConfig;
+use Sofascore\Nats\JetStream\Consumer\ConsumeOptions;
+use Sofascore\Nats\JetStream\Consumer\FetchOptions;
+use Sofascore\Nats\JetStream\Consumer\OrderedConsumerConfig;
+use Sofascore\Nats\JetStream\Message\JetStreamMessage;
+use Sofascore\Nats\JetStream\Stream\StreamConfig;
 
 $conn = Connection::connect();
 $js = $conn->jetStream();
@@ -66,7 +66,7 @@ try {
     $msg = $consumer->next(timeout: 2.0);
     echo "Next: {$msg->data()}\n";
     $msg->ack();
-} catch (\Nats\TimeoutException) {
+} catch (\Sofascore\Nats\TimeoutException) {
     echo "No messages.\n";
 }
 

@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace Nats\JetStream\Stream;
+namespace Sofascore\Nats\JetStream\Stream;
 
-use Nats\Enum\DiscardPolicy;
-use Nats\Enum\RetentionPolicy;
-use Nats\Enum\StorageType;
-use Nats\Enum\StoreCompression;
-use Nats\Internal\TypeCast as T;
+use Sofascore\Nats\Enum\DiscardPolicy;
+use Sofascore\Nats\Enum\RetentionPolicy;
+use Sofascore\Nats\Enum\StorageType;
+use Sofascore\Nats\Enum\StoreCompression;
+use Sofascore\Nats\Internal\TypeCast as T;
 
 readonly class StreamConfig
 {

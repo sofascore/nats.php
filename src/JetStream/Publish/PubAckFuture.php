@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Nats\JetStream\Publish;
+namespace Sofascore\Nats\JetStream\Publish;
 
-use Nats\Message;
+use Sofascore\Nats\Message;
 
 final class PubAckFuture
 {

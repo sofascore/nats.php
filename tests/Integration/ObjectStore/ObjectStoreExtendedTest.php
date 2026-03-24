@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace Nats\Tests\Integration\ObjectStore;
+namespace Sofascore\Nats\Tests\Integration\ObjectStore;
 
-use Nats\Connection;
-use Nats\Enum\StorageType;
-use Nats\JetStream\JetStreamContext;
-use Nats\NatsException;
-use Nats\ObjectStore\ObjectStoreConfig;
-use Nats\Tests\Integration\NatsUrlTrait;
+use Sofascore\Nats\Connection;
+use Sofascore\Nats\Enum\StorageType;
+use Sofascore\Nats\JetStream\JetStreamContext;
+use Sofascore\Nats\NatsException;
+use Sofascore\Nats\ObjectStore\ObjectStoreConfig;
+use Sofascore\Nats\Tests\Integration\NatsUrlTrait;
 use PHPUnit\Framework\TestCase;
 
 final class ObjectStoreExtendedTest extends TestCase

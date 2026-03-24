@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Nats\Tests\Unit\ObjectStore;
+namespace Sofascore\Nats\Tests\Unit\ObjectStore;
 
-use Nats\ObjectStore\ObjectInfo;
-use Nats\ObjectStore\ObjectLink;
+use Sofascore\Nats\ObjectStore\ObjectInfo;
+use Sofascore\Nats\ObjectStore\ObjectLink;
 use PHPUnit\Framework\TestCase;
 
 final class ObjectInfoTest extends TestCase

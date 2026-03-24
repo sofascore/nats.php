@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Nats\ObjectStore;
+namespace Sofascore\Nats\ObjectStore;
 
-use Nats\Enum\StorageType;
-use Nats\JetStream\Stream\Placement;
+use Sofascore\Nats\Enum\StorageType;
+use Sofascore\Nats\JetStream\Stream\Placement;
 
 readonly class ObjectStoreConfig
 {

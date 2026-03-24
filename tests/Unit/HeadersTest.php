@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Nats\Tests\Unit;
+namespace Sofascore\Nats\Tests\Unit;
 
-use Nats\Headers;
+use Sofascore\Nats\Headers;
 use PHPUnit\Framework\TestCase;
 
 final class HeadersTest extends TestCase

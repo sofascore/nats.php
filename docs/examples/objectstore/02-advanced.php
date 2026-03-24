@@ -12,12 +12,12 @@
 
 require_once __DIR__ . '/../../../vendor/autoload.php';
 
-use Nats\Connection;
-use Nats\Enum\StorageType;
-use Nats\Headers;
-use Nats\KeyValue\WatchOptions;
-use Nats\ObjectStore\ObjectMeta;
-use Nats\ObjectStore\ObjectStoreConfig;
+use Sofascore\Nats\Connection;
+use Sofascore\Nats\Enum\StorageType;
+use Sofascore\Nats\Headers;
+use Sofascore\Nats\KeyValue\WatchOptions;
+use Sofascore\Nats\ObjectStore\ObjectMeta;
+use Sofascore\Nats\ObjectStore\ObjectStoreConfig;
 
 $conn = Connection::connect();
 $js = $conn->jetStream();

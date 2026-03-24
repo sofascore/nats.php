@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Nats\Tests\Unit;
+namespace Sofascore\Nats\Tests\Unit;
 
-use Nats\Connection;
-use Nats\ConnectionOptions;
+use Sofascore\Nats\Connection;
+use Sofascore\Nats\ConnectionOptions;
 use PHPUnit\Framework\TestCase;
 
 /**

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Nats\JetStream\Stream;
+namespace Sofascore\Nats\JetStream\Stream;
 
 readonly class StreamPurgeOptions
 {

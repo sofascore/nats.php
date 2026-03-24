@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Nats\JetStream\Message;
+namespace Sofascore\Nats\JetStream\Message;
 
-use Nats\Headers;
+use Sofascore\Nats\Headers;
 
 interface JetStreamMessage
 {
