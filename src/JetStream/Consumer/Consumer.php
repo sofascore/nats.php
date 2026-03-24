@@ -55,7 +55,7 @@ final class Consumer implements ConsumerInterface
         );
 
         $received = 0;
-        $deadline = microtime(true) + $opts->timeout;
+        $deadline = microtime(true) + $opts->timeout + 1.0;
 
         while ($received < $batch && microtime(true) < $deadline) {
             try {
@@ -111,7 +111,7 @@ final class Consumer implements ConsumerInterface
         );
 
         $totalBytes = 0;
-        $deadline = microtime(true) + $opts->timeout;
+        $deadline = microtime(true) + $opts->timeout + 1.0;
 
         while ($totalBytes < $maxBytes && microtime(true) < $deadline) {
             try {
