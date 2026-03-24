@@ -79,6 +79,8 @@ final readonly class ConnectionOptions
         public bool $skipHostLookup = false,
         public bool $skipSubjectValidation = false,
         public ?\Closure $customReconnectDelay = null,
+        /** @var (\Closure(string): list<string>)|null Custom host resolver for testing or custom DNS strategies */
+        public ?\Closure $customHostResolver = null,
 
         // Logging
         ?object $logger = null,

@@ -628,13 +628,48 @@ final class Connection
         $scheme = $parsed['scheme'] ?? 'nats';
 
         $useTls = $scheme === 'tls' || $scheme === 'nats+tls' || $this->options->tlsEnabled;
-        $address = "tcp://{$host}:{$port}";
 
         $this->log('debug', 'Attempting to connect to {url}', ['url' => $url]);
 
         $tlsContext = $useTls ? $this->options->getTlsContext() : null;
 
-        $this->transport->connect($address, $this->options->timeout, $tlsContext);
+        // Preserve original hostname for TLS SNI / certificate verification
+        if ($tlsContext !== null && !isset($tlsContext['peer_name'])) {
+            $tlsContext['peer_name'] = $host;
+        }
+
+        // Resolve hostname to IPs and try each one (matches nats.go createConn behavior)
+        $resolvedIps = $this->resolveHost($host);
+        $lastError = null;
+
+        // Divide timeout equally across resolved IPs so total time per server
+        // never exceeds the configured timeout (matches nats.go behavior)
+        $perIpTimeout = count($resolvedIps) > 1
+            ? $this->options->timeout / count($resolvedIps)
+            : $this->options->timeout;
+
+        foreach ($resolvedIps as $ip) {
+            $addressHost = filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) ? "[{$ip}]" : $ip;
+            $address = "tcp://{$addressHost}:{$port}";
+
+            try {
+                $this->transport->connect($address, $perIpTimeout, $tlsContext);
+                $lastError = null;
+                break;
+            } catch (NatsException $e) {
+                $lastError = $e;
+                $this->log('debug', 'Failed to connect to {address}: {error}', [
+                    'address' => $address,
+                    'error' => $e->getMessage(),
+                ]);
+                continue;
+            }
+        }
+
+        if ($lastError !== null) {
+            throw $lastError;
+        }
+
         $this->transport->setTimeout($this->options->timeout);
 
         // Read INFO
@@ -652,7 +687,11 @@ final class Connection
         // TLS upgrade if server requires it but we connected plain
         if ($serverInfo->tlsRequired && !$useTls) {
             $this->log('debug', 'Upgrading to TLS');
-            $this->transport->upgradeTls($this->options->getTlsContext());
+            $upgradeCtx = $this->options->getTlsContext();
+            if (!isset($upgradeCtx['peer_name'])) {
+                $upgradeCtx['peer_name'] = $host;
+            }
+            $this->transport->upgradeTls($upgradeCtx);
         }
 
         // Add discovered servers to pool
@@ -699,6 +738,54 @@ final class Connection
         if (isset($parsed['user']) && $this->options->authenticator === null) {
             // URL had embedded credentials — already handled in buildConnectPayload
         }
+    }
+
+    /**
+     * Resolve a hostname to a list of IP addresses.
+     *
+     * Returns the original host wrapped in an array if skipHostLookup is true,
+     * the host is already an IP address, or DNS resolution fails.
+     *
+     * @return list<string>
+     */
+    private function resolveHost(string $host): array
+    {
+        if ($this->options->customHostResolver !== null) {
+            return ($this->options->customHostResolver)($host);
+        }
+
+        if ($this->options->skipHostLookup) {
+            return [$host];
+        }
+
+        if (filter_var($host, FILTER_VALIDATE_IP) !== false) {
+            return [$host];
+        }
+
+        // Use system resolver (respects /etc/hosts and NSS) for IPv4
+        $ips = gethostbynamel($host) ?: [];
+
+        // Supplement with AAAA records for IPv6 support (guarded for hardened environments)
+        if (function_exists('dns_get_record')) {
+            $records = @dns_get_record($host, DNS_AAAA);
+            if ($records !== false) {
+                foreach ($records as $record) {
+                    if (isset($record['ipv6']) && is_string($record['ipv6'])) {
+                        $ips[] = $record['ipv6'];
+                    }
+                }
+            }
+        }
+
+        if ($ips === []) {
+            $this->log('debug', 'DNS resolution for {host} failed, using hostname directly', ['host' => $host]);
+            return [$host];
+        }
+
+        $ips = array_values(array_unique($ips));
+
+        $this->log('debug', 'Resolved {host} to {ips}', ['host' => $host, 'ips' => implode(', ', $ips)]);
+        return $ips;
     }
 
     /**
