@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Nats\KeyValue;
+namespace Sofascore\Nats\KeyValue;
 
-use Nats\Internal\TypeCast as T;
+use Sofascore\Nats\Internal\TypeCast as T;
 
 /**
  * @implements \IteratorAggregate<int, KeyValueEntry>
@@ -47,36 +47,36 @@ final class KeyWatcher implements \IteratorAggregate
         }
 
         // Determine delivery policy based on options
-        $deliverPolicy = \Nats\Enum\DeliveryPolicy::Last;
+        $deliverPolicy = \Sofascore\Nats\Enum\DeliveryPolicy::Last;
         $optStartSeq = null;
 
         if ($resumeFromRevision !== null) {
-            $deliverPolicy = \Nats\Enum\DeliveryPolicy::ByStartSequence;
+            $deliverPolicy = \Sofascore\Nats\Enum\DeliveryPolicy::ByStartSequence;
             $optStartSeq = $resumeFromRevision;
         } elseif ($includeHistory) {
-            $deliverPolicy = \Nats\Enum\DeliveryPolicy::All;
+            $deliverPolicy = \Sofascore\Nats\Enum\DeliveryPolicy::All;
         }
 
         if ($this->filterSubjects !== []) {
-            $consumerConfig = new \Nats\JetStream\Consumer\ConsumerConfig(
+            $consumerConfig = new \Sofascore\Nats\JetStream\Consumer\ConsumerConfig(
                 deliverPolicy: $deliverPolicy,
                 optStartSeq: $optStartSeq,
-                ackPolicy: \Nats\Enum\AckPolicy::None,
+                ackPolicy: \Sofascore\Nats\Enum\AckPolicy::None,
                 filterSubjects: array_map(
                     fn(string $key) => "\$KV.{$this->kv->bucket()}.{$key}",
                     $this->filterSubjects,
                 ),
-                replayPolicy: \Nats\Enum\ReplayPolicy::Instant,
+                replayPolicy: \Sofascore\Nats\Enum\ReplayPolicy::Instant,
                 memoryStorage: true,
                 headersOnly: $metaOnly,
             );
         } else {
-            $consumerConfig = new \Nats\JetStream\Consumer\ConsumerConfig(
+            $consumerConfig = new \Sofascore\Nats\JetStream\Consumer\ConsumerConfig(
                 deliverPolicy: $deliverPolicy,
                 optStartSeq: $optStartSeq,
-                ackPolicy: \Nats\Enum\AckPolicy::None,
+                ackPolicy: \Sofascore\Nats\Enum\AckPolicy::None,
                 filterSubject: "\$KV.{$this->kv->bucket()}.{$this->keys}",
-                replayPolicy: \Nats\Enum\ReplayPolicy::Instant,
+                replayPolicy: \Sofascore\Nats\Enum\ReplayPolicy::Instant,
                 memoryStorage: true,
                 headersOnly: $metaOnly,
             );
@@ -87,7 +87,7 @@ final class KeyWatcher implements \IteratorAggregate
             $consumerConfig,
         );
 
-        $messages = $consumer->messages(new \Nats\JetStream\Consumer\ConsumeOptions(
+        $messages = $consumer->messages(new \Sofascore\Nats\JetStream\Consumer\ConsumeOptions(
             maxMessages: 100,
             expires: 5.0,
         ));
@@ -100,7 +100,7 @@ final class KeyWatcher implements \IteratorAggregate
 
             $entry = $this->kv->entryFromJetStreamMsg($msg);
 
-            if ($ignoreDeletes && $entry->operation !== \Nats\Enum\KeyValueOperation::Put) {
+            if ($ignoreDeletes && $entry->operation !== \Sofascore\Nats\Enum\KeyValueOperation::Put) {
                 continue;
             }
 

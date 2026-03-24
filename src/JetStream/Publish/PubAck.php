@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Nats\JetStream\Publish;
+namespace Sofascore\Nats\JetStream\Publish;
 
-use Nats\Internal\TypeCast as T;
+use Sofascore\Nats\Internal\TypeCast as T;
 
 readonly class PubAck
 {

@@ -10,9 +10,9 @@
 
 require_once __DIR__ . '/../../../vendor/autoload.php';
 
-use Nats\Connection;
-use Nats\ConnectionOptions;
-use Nats\Enum\ConnectionStatus;
+use Sofascore\Nats\Connection;
+use Sofascore\Nats\ConnectionOptions;
+use Sofascore\Nats\Enum\ConnectionStatus;
 
 // ==========================================================================
 // DRAIN vs CLOSE

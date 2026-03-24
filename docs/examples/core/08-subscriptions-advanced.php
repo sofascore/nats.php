@@ -9,8 +9,8 @@
 
 require_once __DIR__ . '/../../../vendor/autoload.php';
 
-use Nats\Connection;
-use Nats\Message;
+use Sofascore\Nats\Connection;
+use Sofascore\Nats\Message;
 
 $conn = Connection::connect();
 
@@ -87,7 +87,7 @@ while (true) {
         $msg = $autoSub->nextMessage(0.5);
         $count++;
         echo "Auto [{$count}]: {$msg->data}\n";
-    } catch (\Nats\TimeoutException) {
+    } catch (\Sofascore\Nats\TimeoutException) {
         break;
     }
 }

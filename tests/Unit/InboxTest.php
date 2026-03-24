@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Nats\Tests\Unit;
+namespace Sofascore\Nats\Tests\Unit;
 
-use Nats\Inbox;
+use Sofascore\Nats\Inbox;
 use PHPUnit\Framework\TestCase;
 
 final class InboxTest extends TestCase

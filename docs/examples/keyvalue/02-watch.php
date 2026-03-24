@@ -8,9 +8,9 @@
 
 require_once __DIR__ . '/../../../vendor/autoload.php';
 
-use Nats\Connection;
-use Nats\KeyValue\KeyValueConfig;
-use Nats\KeyValue\WatchOptions;
+use Sofascore\Nats\Connection;
+use Sofascore\Nats\KeyValue\KeyValueConfig;
+use Sofascore\Nats\KeyValue\WatchOptions;
 
 $conn = Connection::connect();
 $js = $conn->jetStream();

@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace Nats\Tests\Integration\JetStream;
+namespace Sofascore\Nats\Tests\Integration\JetStream;
 
-use Nats\Tests\Integration\NatsUrlTrait;
-use Nats\Connection;
-use Nats\JetStream\Consumer\ConsumerConfig;
-use Nats\JetStream\Consumer\ConsumeOptions;
-use Nats\JetStream\JetStreamContext;
-use Nats\JetStream\Stream\StreamConfig;
+use Sofascore\Nats\Tests\Integration\NatsUrlTrait;
+use Sofascore\Nats\Connection;
+use Sofascore\Nats\JetStream\Consumer\ConsumerConfig;
+use Sofascore\Nats\JetStream\Consumer\ConsumeOptions;
+use Sofascore\Nats\JetStream\JetStreamContext;
+use Sofascore\Nats\JetStream\Stream\StreamConfig;
 use PHPUnit\Framework\TestCase;
 
 final class ConsumeContextTest extends TestCase

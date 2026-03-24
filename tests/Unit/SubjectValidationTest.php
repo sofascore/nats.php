@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Nats\Tests\Unit;
+namespace Sofascore\Nats\Tests\Unit;
 
-use Nats\BadSubjectException;
-use Nats\Connection;
+use Sofascore\Nats\BadSubjectException;
+use Sofascore\Nats\Connection;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 

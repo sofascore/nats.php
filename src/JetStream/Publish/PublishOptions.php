@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Nats\JetStream\Publish;
+namespace Sofascore\Nats\JetStream\Publish;
 
-use Nats\Internal\TypeCast as T;
+use Sofascore\Nats\Internal\TypeCast as T;
 
 final class PublishOptions
 {
@@ -68,7 +68,7 @@ final class PublishOptions
      *
      * @param list<PublishOptions> $options
      */
-    public static function applyToHeaders(\Nats\Headers $headers, array $options): void
+    public static function applyToHeaders(\Sofascore\Nats\Headers $headers, array $options): void
     {
         foreach ($options as $opt) {
             match ($opt->type) {

@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace Nats\JetStream\Consumer;
+namespace Sofascore\Nats\JetStream\Consumer;
 
-use Nats\Enum\AckPolicy;
-use Nats\Enum\DeliveryPolicy;
-use Nats\Enum\ReplayPolicy;
-use Nats\Internal\TypeCast as T;
+use Sofascore\Nats\Enum\AckPolicy;
+use Sofascore\Nats\Enum\DeliveryPolicy;
+use Sofascore\Nats\Enum\ReplayPolicy;
+use Sofascore\Nats\Internal\TypeCast as T;
 
 readonly class ConsumerConfig
 {

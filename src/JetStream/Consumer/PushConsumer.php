@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace Nats\JetStream\Consumer;
+namespace Sofascore\Nats\JetStream\Consumer;
 
-use Nats\JetStream\JetStreamContext;
-use Nats\JetStream\Message\JetStreamMsg;
-use Nats\Message;
-use Nats\NatsException;
-use Nats\Subscription;
+use Sofascore\Nats\JetStream\JetStreamContext;
+use Sofascore\Nats\JetStream\Message\JetStreamMsg;
+use Sofascore\Nats\Message;
+use Sofascore\Nats\NatsException;
+use Sofascore\Nats\Subscription;
 
 final class PushConsumer implements PushConsumerInterface
 {

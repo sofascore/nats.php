@@ -2,20 +2,20 @@
 
 declare(strict_types=1);
 
-namespace Nats\Tests\Integration\JetStream;
+namespace Sofascore\Nats\Tests\Integration\JetStream;
 
-use Nats\Tests\Integration\NatsUrlTrait;
-use Nats\Connection;
-use Nats\Enum\AckPolicy;
-use Nats\Enum\DeliveryPolicy;
-use Nats\Enum\StorageType;
-use Nats\JetStream\Consumer\ConsumerConfig;
-use Nats\JetStream\Consumer\ConsumeOptions;
-use Nats\JetStream\Consumer\FetchOptions;
-use Nats\JetStream\Consumer\OrderedConsumerConfig;
-use Nats\JetStream\JetStreamContext;
-use Nats\JetStream\Stream\StreamConfig;
-use Nats\JetStream\Stream\StreamInterface;
+use Sofascore\Nats\Tests\Integration\NatsUrlTrait;
+use Sofascore\Nats\Connection;
+use Sofascore\Nats\Enum\AckPolicy;
+use Sofascore\Nats\Enum\DeliveryPolicy;
+use Sofascore\Nats\Enum\StorageType;
+use Sofascore\Nats\JetStream\Consumer\ConsumerConfig;
+use Sofascore\Nats\JetStream\Consumer\ConsumeOptions;
+use Sofascore\Nats\JetStream\Consumer\FetchOptions;
+use Sofascore\Nats\JetStream\Consumer\OrderedConsumerConfig;
+use Sofascore\Nats\JetStream\JetStreamContext;
+use Sofascore\Nats\JetStream\Stream\StreamConfig;
+use Sofascore\Nats\JetStream\Stream\StreamInterface;
 use PHPUnit\Framework\TestCase;
 
 final class ConsumerTest extends TestCase
@@ -278,7 +278,7 @@ final class ConsumerTest extends TestCase
 
         $this->stream->deleteConsumer('to-delete');
 
-        $this->expectException(\Nats\JetStream\Error\JetStreamException::class);
+        $this->expectException(\Sofascore\Nats\JetStream\Error\JetStreamException::class);
         $this->stream->consumer('to-delete');
     }
 }

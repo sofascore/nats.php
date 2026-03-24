@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Nats\Tests\Unit\JetStream\Stream;
+namespace Sofascore\Nats\Tests\Unit\JetStream\Stream;
 
-use Nats\JetStream\Stream\StreamAlternate;
+use Sofascore\Nats\JetStream\Stream\StreamAlternate;
 use PHPUnit\Framework\TestCase;
 
 final class StreamAlternateTest extends TestCase

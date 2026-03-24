@@ -17,8 +17,8 @@
     "homepage": "https://github.com/sofascore/nats.php",
     "authors": [
         {
-            "name": "Matko Mandelinic",
-            "homepage": "https://github.com/sofascore"
+            "name": "Sofascore",
+            "email": "backend-team@sofascore.com"
         }
     ],
     "support": {
@@ -39,12 +39,12 @@
     },
     "autoload": {
         "psr-4": {
-            "Nats\\": "src/"
+            "Sofascore\\Nats\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "Nats\\Tests\\": "tests/"
+            "Sofascore\\Nats\\Tests\\": "tests/"
         }
     },
     "config": {

@@ -2,16 +2,16 @@
 
 declare(strict_types=1);
 
-namespace Nats\KeyValue;
+namespace Sofascore\Nats\KeyValue;
 
-use Nats\Enum\KeyValueOperation;
-use Nats\Headers;
-use Nats\JetStream\Error\JetStreamException;
-use Nats\JetStream\JetStreamContext;
-use Nats\JetStream\Message\JetStreamMessage;
-use Nats\JetStream\Publish\PublishOptions;
-use Nats\Message;
-use Nats\NatsException;
+use Sofascore\Nats\Enum\KeyValueOperation;
+use Sofascore\Nats\Headers;
+use Sofascore\Nats\JetStream\Error\JetStreamException;
+use Sofascore\Nats\JetStream\JetStreamContext;
+use Sofascore\Nats\JetStream\Message\JetStreamMessage;
+use Sofascore\Nats\JetStream\Publish\PublishOptions;
+use Sofascore\Nats\Message;
+use Sofascore\Nats\NatsException;
 
 final class KeyValue implements KeyValueInterface
 {
@@ -340,7 +340,7 @@ final class KeyValue implements KeyValueInterface
             metadata: $info->config->metadata,
             mirror: $info->config->mirror,
             sources: $info->config->sources,
-            compression: $info->config->compression !== \Nats\Enum\StoreCompression::None,
+            compression: $info->config->compression !== \Sofascore\Nats\Enum\StoreCompression::None,
             rePublish: $info->config->rePublish,
         );
 
@@ -351,7 +351,7 @@ final class KeyValue implements KeyValueInterface
             ttl: $info->config->maxAge,
             bytes: $info->state->bytes,
             backingStore: $info->config->storage->value,
-            isCompressed: $info->config->compression !== \Nats\Enum\StoreCompression::None,
+            isCompressed: $info->config->compression !== \Sofascore\Nats\Enum\StoreCompression::None,
             config: $config,
             metadata: $info->config->metadata,
             streamInfo: $info,

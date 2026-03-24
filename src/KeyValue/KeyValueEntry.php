@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Nats\KeyValue;
+namespace Sofascore\Nats\KeyValue;
 
-use Nats\Enum\KeyValueOperation;
+use Sofascore\Nats\Enum\KeyValueOperation;
 
 readonly class KeyValueEntry
 {

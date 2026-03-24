@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace Nats\Tests\Integration\JetStream;
+namespace Sofascore\Nats\Tests\Integration\JetStream;
 
-use Nats\Tests\Integration\NatsUrlTrait;
-use Nats\Connection;
-use Nats\Enum\StorageType;
-use Nats\JetStream\JetStreamContext;
-use Nats\JetStream\Publish\PublishOptions;
-use Nats\JetStream\Stream\StreamConfig;
+use Sofascore\Nats\Tests\Integration\NatsUrlTrait;
+use Sofascore\Nats\Connection;
+use Sofascore\Nats\Enum\StorageType;
+use Sofascore\Nats\JetStream\JetStreamContext;
+use Sofascore\Nats\JetStream\Publish\PublishOptions;
+use Sofascore\Nats\JetStream\Stream\StreamConfig;
 use PHPUnit\Framework\TestCase;
 
 final class PublishExtendedTest extends TestCase
@@ -114,7 +114,7 @@ final class PublishExtendedTest extends TestCase
         );
 
         // Expecting wrong last msgId should fail
-        $this->expectException(\Nats\JetStream\Error\JetStreamException::class);
+        $this->expectException(\Sofascore\Nats\JetStream\Error\JetStreamException::class);
         $this->js->publish(
             "{$prefix}.dedup2",
             'second',

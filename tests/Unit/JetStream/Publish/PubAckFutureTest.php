@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Nats\Tests\Unit\JetStream\Publish;
+namespace Sofascore\Nats\Tests\Unit\JetStream\Publish;
 
-use Nats\JetStream\Publish\PubAck;
-use Nats\JetStream\Publish\PubAckFuture;
-use Nats\Message;
+use Sofascore\Nats\JetStream\Publish\PubAck;
+use Sofascore\Nats\JetStream\Publish\PubAckFuture;
+use Sofascore\Nats\Message;
 use PHPUnit\Framework\TestCase;
 
 final class PubAckFutureTest extends TestCase

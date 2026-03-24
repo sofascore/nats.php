@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Nats\Tests\Integration;
+namespace Sofascore\Nats\Tests\Integration;
 
-use Nats\Connection;
-use Nats\ConnectionOptions;
-use Nats\Enum\ConnectionStatus;
+use Sofascore\Nats\Connection;
+use Sofascore\Nats\ConnectionOptions;
+use Sofascore\Nats\Enum\ConnectionStatus;
 use PHPUnit\Framework\TestCase;
 
 final class ConnectionTest extends TestCase
@@ -39,7 +39,7 @@ final class ConnectionTest extends TestCase
 
     public function testConnectFailsWithBadUrl(): void
     {
-        $this->expectException(\Nats\NatsException::class);
+        $this->expectException(\Sofascore\Nats\NatsException::class);
         Connection::connect('nats://127.0.0.1:19999');
     }
 
@@ -47,7 +47,7 @@ final class ConnectionTest extends TestCase
     {
         $badUrl = 'nats://user@:4222';
 
-        $this->expectException(\Nats\NatsException::class);
+        $this->expectException(\Sofascore\Nats\NatsException::class);
         $this->expectExceptionMessage("Failed to connect to any NATS server: Invalid server URL: {$badUrl}");
 
         Connection::connect($badUrl);
@@ -131,7 +131,7 @@ final class ConnectionTest extends TestCase
         $conn = Connection::connect(self::natsUrl());
         $conn->close();
 
-        $this->expectException(\Nats\ConnectionClosedException::class);
+        $this->expectException(\Sofascore\Nats\ConnectionClosedException::class);
         $conn->publish('test', 'data');
     }
 

@@ -11,12 +11,12 @@
 
 require_once __DIR__ . '/../../../vendor/autoload.php';
 
-use Nats\Connection;
-use Nats\Enum\AckPolicy;
-use Nats\Enum\DeliveryPolicy;
-use Nats\JetStream\Consumer\ConsumerConfig;
-use Nats\JetStream\Consumer\FetchOptions;
-use Nats\JetStream\Stream\StreamConfig;
+use Sofascore\Nats\Connection;
+use Sofascore\Nats\Enum\AckPolicy;
+use Sofascore\Nats\Enum\DeliveryPolicy;
+use Sofascore\Nats\JetStream\Consumer\ConsumerConfig;
+use Sofascore\Nats\JetStream\Consumer\FetchOptions;
+use Sofascore\Nats\JetStream\Stream\StreamConfig;
 
 $conn = Connection::connect();
 $js = $conn->jetStream();

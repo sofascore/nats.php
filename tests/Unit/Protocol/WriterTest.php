@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Nats\Tests\Unit\Protocol;
+namespace Sofascore\Nats\Tests\Unit\Protocol;
 
-use Nats\Protocol\Writer;
+use Sofascore\Nats\Protocol\Writer;
 use PHPUnit\Framework\TestCase;
 
 final class WriterTest extends TestCase

@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Nats\Tests\Unit\JetStream\Stream;
+namespace Sofascore\Nats\Tests\Unit\JetStream\Stream;
 
-use Nats\JetStream\Stream\ClusterInfo;
-use Nats\JetStream\Stream\PeerInfo;
+use Sofascore\Nats\JetStream\Stream\ClusterInfo;
+use Sofascore\Nats\JetStream\Stream\PeerInfo;
 use PHPUnit\Framework\TestCase;
 
 final class ClusterInfoTest extends TestCase

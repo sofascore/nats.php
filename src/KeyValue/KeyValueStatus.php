@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Nats\KeyValue;
+namespace Sofascore\Nats\KeyValue;
 
-use Nats\JetStream\Stream\StreamInfo;
+use Sofascore\Nats\JetStream\Stream\StreamInfo;
 
 readonly class KeyValueStatus
 {

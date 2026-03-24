@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace Nats\Tests\Integration;
+namespace Sofascore\Nats\Tests\Integration;
 
-use Nats\Connection;
-use Nats\Headers;
-use Nats\Message;
-use Nats\TimeoutException;
+use Sofascore\Nats\Connection;
+use Sofascore\Nats\Headers;
+use Sofascore\Nats\Message;
+use Sofascore\Nats\TimeoutException;
 use PHPUnit\Framework\TestCase;
 
 final class RequestReplyTest extends TestCase

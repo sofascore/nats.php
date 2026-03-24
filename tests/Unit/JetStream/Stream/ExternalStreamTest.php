@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Nats\Tests\Unit\JetStream\Stream;
+namespace Sofascore\Nats\Tests\Unit\JetStream\Stream;
 
-use Nats\JetStream\Stream\ExternalStream;
+use Sofascore\Nats\JetStream\Stream\ExternalStream;
 use PHPUnit\Framework\TestCase;
 
 final class ExternalStreamTest extends TestCase

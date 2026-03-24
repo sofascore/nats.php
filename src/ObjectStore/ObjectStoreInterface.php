@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Nats\ObjectStore;
+namespace Sofascore\Nats\ObjectStore;
 
-use Nats\KeyValue\WatchOptions;
+use Sofascore\Nats\KeyValue\WatchOptions;
 
 interface ObjectStoreInterface
 {

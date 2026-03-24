@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Nats\Internal;
+namespace Sofascore\Nats\Internal;
 
 /**
  * Type-safe casting helpers for mixed values from JSON-decoded data.

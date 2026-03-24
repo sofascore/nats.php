@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Nats\Tests\Unit\JetStream\Publish;
+namespace Sofascore\Nats\Tests\Unit\JetStream\Publish;
 
-use Nats\Headers;
-use Nats\JetStream\Publish\PublishOptions;
+use Sofascore\Nats\Headers;
+use Sofascore\Nats\JetStream\Publish\PublishOptions;
 use PHPUnit\Framework\TestCase;
 
 final class PublishOptionsTest extends TestCase

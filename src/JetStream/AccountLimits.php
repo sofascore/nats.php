@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Nats\JetStream;
+namespace Sofascore\Nats\JetStream;
 
-use Nats\Internal\TypeCast as T;
+use Sofascore\Nats\Internal\TypeCast as T;
 
 readonly class AccountLimits
 {

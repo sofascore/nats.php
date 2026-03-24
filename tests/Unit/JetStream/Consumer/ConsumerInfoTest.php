@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Nats\Tests\Unit\JetStream\Consumer;
+namespace Sofascore\Nats\Tests\Unit\JetStream\Consumer;
 
-use Nats\JetStream\Consumer\ConsumerInfo;
-use Nats\JetStream\Stream\ClusterInfo;
+use Sofascore\Nats\JetStream\Consumer\ConsumerInfo;
+use Sofascore\Nats\JetStream\Stream\ClusterInfo;
 use PHPUnit\Framework\TestCase;
 
 final class ConsumerInfoTest extends TestCase

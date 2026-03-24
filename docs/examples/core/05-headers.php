@@ -6,9 +6,9 @@
 
 require_once __DIR__ . '/../../../vendor/autoload.php';
 
-use Nats\Connection;
-use Nats\Headers;
-use Nats\Message;
+use Sofascore\Nats\Connection;
+use Sofascore\Nats\Headers;
+use Sofascore\Nats\Message;
 
 $conn = Connection::connect();
 

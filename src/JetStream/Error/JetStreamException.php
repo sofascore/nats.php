@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Nats\JetStream\Error;
+namespace Sofascore\Nats\JetStream\Error;
 
-use Nats\NatsException;
-use Nats\Internal\TypeCast as T;
+use Sofascore\Nats\NatsException;
+use Sofascore\Nats\Internal\TypeCast as T;
 
 class JetStreamException extends NatsException
 {

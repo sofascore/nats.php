@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace Nats\Tests\Integration\ObjectStore;
+namespace Sofascore\Nats\Tests\Integration\ObjectStore;
 
-use Nats\Connection;
-use Nats\Enum\StorageType;
-use Nats\JetStream\JetStreamContext;
-use Nats\ObjectStore\ObjectMeta;
-use Nats\ObjectStore\ObjectStoreConfig;
-use Nats\ObjectStore\ObjectStoreInterface;
-use Nats\Tests\Integration\NatsUrlTrait;
+use Sofascore\Nats\Connection;
+use Sofascore\Nats\Enum\StorageType;
+use Sofascore\Nats\JetStream\JetStreamContext;
+use Sofascore\Nats\ObjectStore\ObjectMeta;
+use Sofascore\Nats\ObjectStore\ObjectStoreConfig;
+use Sofascore\Nats\ObjectStore\ObjectStoreInterface;
+use Sofascore\Nats\Tests\Integration\NatsUrlTrait;
 use PHPUnit\Framework\TestCase;
 
 final class ObjectStoreTest extends TestCase
@@ -153,7 +153,7 @@ final class ObjectStoreTest extends TestCase
         self::assertNotFalse($stream);
 
         try {
-            $this->expectException(\Nats\NatsException::class);
+            $this->expectException(\Sofascore\Nats\NatsException::class);
             $this->expectExceptionMessage('Stream for object unreadable.txt must be a readable stream resource');
 
             $store->putStream('unreadable.txt', $stream);
@@ -169,7 +169,7 @@ final class ObjectStoreTest extends TestCase
         $store->putBytes('to-delete.txt', 'delete me');
         $store->delete('to-delete.txt');
 
-        $this->expectException(\Nats\NatsException::class);
+        $this->expectException(\Sofascore\Nats\NatsException::class);
         $store->getBytes('to-delete.txt');
     }
 
@@ -240,7 +240,7 @@ final class ObjectStoreTest extends TestCase
     {
         $store = $this->createStore();
 
-        $this->expectException(\Nats\NatsException::class);
+        $this->expectException(\Sofascore\Nats\NatsException::class);
         $store->getBytes('nonexistent.txt');
     }
 

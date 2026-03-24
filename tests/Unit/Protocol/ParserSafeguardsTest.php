@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Nats\Tests\Unit\Protocol;
+namespace Sofascore\Nats\Tests\Unit\Protocol;
 
-use Nats\NatsException;
-use Nats\Protocol\Command;
-use Nats\Protocol\Parser;
+use Sofascore\Nats\NatsException;
+use Sofascore\Nats\Protocol\Command;
+use Sofascore\Nats\Protocol\Parser;
 use PHPUnit\Framework\TestCase;
 
 /**

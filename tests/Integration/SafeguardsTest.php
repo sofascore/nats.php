@@ -2,16 +2,16 @@
 
 declare(strict_types=1);
 
-namespace Nats\Tests\Integration;
+namespace Sofascore\Nats\Tests\Integration;
 
-use Nats\BadSubjectException;
-use Nats\Connection;
-use Nats\ConnectionOptions;
-use Nats\Headers;
-use Nats\MaxPayloadException;
-use Nats\Message;
-use Nats\NatsException;
-use Nats\SlowConsumerException;
+use Sofascore\Nats\BadSubjectException;
+use Sofascore\Nats\Connection;
+use Sofascore\Nats\ConnectionOptions;
+use Sofascore\Nats\Headers;
+use Sofascore\Nats\MaxPayloadException;
+use Sofascore\Nats\Message;
+use Sofascore\Nats\NatsException;
+use Sofascore\Nats\SlowConsumerException;
 use PHPUnit\Framework\TestCase;
 
 /**

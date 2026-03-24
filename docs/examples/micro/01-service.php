@@ -9,13 +9,13 @@
 
 require_once __DIR__ . '/../../../vendor/autoload.php';
 
-use Nats\Connection;
-use Nats\Micro\EndpointConfig;
-use Nats\Micro\Group;
-use Nats\Micro\HandlerInterface;
-use Nats\Micro\RequestInterface;
-use Nats\Micro\Service;
-use Nats\Micro\ServiceConfig;
+use Sofascore\Nats\Connection;
+use Sofascore\Nats\Micro\EndpointConfig;
+use Sofascore\Nats\Micro\Group;
+use Sofascore\Nats\Micro\HandlerInterface;
+use Sofascore\Nats\Micro\RequestInterface;
+use Sofascore\Nats\Micro\Service;
+use Sofascore\Nats\Micro\ServiceConfig;
 
 $conn = Connection::connect();
 

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Nats\ObjectStore;
+namespace Sofascore\Nats\ObjectStore;
 
 final class ObjectResult
 {

@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Nats\Auth;
+namespace Sofascore\Nats\Auth;
 
-use Nats\NatsException;
+use Sofascore\Nats\NatsException;
 
 readonly class CredentialsAuthenticator implements AuthenticatorInterface
 {

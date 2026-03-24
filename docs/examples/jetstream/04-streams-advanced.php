@@ -11,17 +11,17 @@
 
 require_once __DIR__ . '/../../../vendor/autoload.php';
 
-use Nats\Connection;
-use Nats\Enum\DiscardPolicy;
-use Nats\Enum\RetentionPolicy;
-use Nats\Enum\StorageType;
-use Nats\Enum\StoreCompression;
-use Nats\JetStream\Stream\ExternalStream;
-use Nats\JetStream\Stream\StreamConfig;
-use Nats\JetStream\Stream\StreamConsumerLimits;
-use Nats\JetStream\Stream\StreamPurgeOptions;
-use Nats\JetStream\Stream\StreamSource;
-use Nats\JetStream\Stream\SubjectTransform;
+use Sofascore\Nats\Connection;
+use Sofascore\Nats\Enum\DiscardPolicy;
+use Sofascore\Nats\Enum\RetentionPolicy;
+use Sofascore\Nats\Enum\StorageType;
+use Sofascore\Nats\Enum\StoreCompression;
+use Sofascore\Nats\JetStream\Stream\ExternalStream;
+use Sofascore\Nats\JetStream\Stream\StreamConfig;
+use Sofascore\Nats\JetStream\Stream\StreamConsumerLimits;
+use Sofascore\Nats\JetStream\Stream\StreamPurgeOptions;
+use Sofascore\Nats\JetStream\Stream\StreamSource;
+use Sofascore\Nats\JetStream\Stream\SubjectTransform;
 
 $conn = Connection::connect();
 $js = $conn->jetStream();

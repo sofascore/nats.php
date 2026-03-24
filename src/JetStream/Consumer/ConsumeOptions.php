@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Nats\JetStream\Consumer;
+namespace Sofascore\Nats\JetStream\Consumer;
 
 readonly class ConsumeOptions
 {

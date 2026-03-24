@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Nats\Tests\Unit\JetStream\Consumer;
+namespace Sofascore\Nats\Tests\Unit\JetStream\Consumer;
 
-use Nats\JetStream\Consumer\ConsumerPauseResponse;
+use Sofascore\Nats\JetStream\Consumer\ConsumerPauseResponse;
 use PHPUnit\Framework\TestCase;
 
 final class ConsumerPauseResponseTest extends TestCase

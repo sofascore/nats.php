@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Nats\JetStream\Consumer;
+namespace Sofascore\Nats\JetStream\Consumer;
 
-use Nats\JetStream\Message\JetStreamMessage;
-use Nats\TimeoutException;
+use Sofascore\Nats\JetStream\Message\JetStreamMessage;
+use Sofascore\Nats\TimeoutException;
 
 /**
  * @implements \IteratorAggregate<int, JetStreamMessage>

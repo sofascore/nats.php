@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace Nats;
+namespace Sofascore\Nats;
 
-use Nats\Enum\ConnectionStatus;
-use Nats\Protocol\Command;
-use Nats\Protocol\Parser;
-use Nats\Protocol\ServerOp;
-use Nats\Protocol\Writer;
-use Nats\Transport\TcpTransport;
-use Nats\Transport\TransportInterface;
+use Sofascore\Nats\Enum\ConnectionStatus;
+use Sofascore\Nats\Protocol\Command;
+use Sofascore\Nats\Protocol\Parser;
+use Sofascore\Nats\Protocol\ServerOp;
+use Sofascore\Nats\Protocol\Writer;
+use Sofascore\Nats\Transport\TcpTransport;
+use Sofascore\Nats\Transport\TransportInterface;
 
 final class Connection
 {

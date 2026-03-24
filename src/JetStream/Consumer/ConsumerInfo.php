@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Nats\JetStream\Consumer;
+namespace Sofascore\Nats\JetStream\Consumer;
 
-use Nats\Internal\TypeCast as T;
-use Nats\JetStream\Stream\ClusterInfo;
+use Sofascore\Nats\Internal\TypeCast as T;
+use Sofascore\Nats\JetStream\Stream\ClusterInfo;
 
 readonly class ConsumerInfo
 {

@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace Nats\Tests\Integration\KeyValue;
+namespace Sofascore\Nats\Tests\Integration\KeyValue;
 
-use Nats\Connection;
-use Nats\Enum\KeyValueOperation;
-use Nats\JetStream\JetStreamContext;
-use Nats\KeyValue\KeyValueConfig;
-use Nats\KeyValue\KeyValueInterface;
-use Nats\NatsException;
-use Nats\Tests\Integration\NatsUrlTrait;
+use Sofascore\Nats\Connection;
+use Sofascore\Nats\Enum\KeyValueOperation;
+use Sofascore\Nats\JetStream\JetStreamContext;
+use Sofascore\Nats\KeyValue\KeyValueConfig;
+use Sofascore\Nats\KeyValue\KeyValueInterface;
+use Sofascore\Nats\NatsException;
+use Sofascore\Nats\Tests\Integration\NatsUrlTrait;
 use PHPUnit\Framework\TestCase;
 
 final class KeyValueTest extends TestCase

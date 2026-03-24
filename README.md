@@ -18,8 +18,8 @@ composer require sofascore/nats.php
 ## Quick Start
 
 ```php
-use Nats\Connection;
-use Nats\Message;
+use Sofascore\Nats\Connection;
+use Sofascore\Nats\Message;
 
 // Connect
 $conn = Connection::connect(); // localhost:4222
@@ -33,7 +33,7 @@ $conn->process(0.5);
 
 // JetStream
 $js = $conn->jetStream();
-$kv = $js->createKeyValue(new \Nats\KeyValue\KeyValueConfig(bucket: 'cache'));
+$kv = $js->createKeyValue(new \Sofascore\Nats\KeyValue\KeyValueConfig(bucket: 'cache'));
 $kv->put('key', 'value');
 $entry = $kv->get('key');
 
@@ -126,8 +126,8 @@ The snippets below are compact reference examples. For complete setup/cleanup fl
 ### Core — Connect
 
 ```php
-use Nats\Connection;
-use Nats\ConnectionOptions;
+use Sofascore\Nats\Connection;
+use Sofascore\Nats\ConnectionOptions;
 
 // Default (localhost:4222)
 $conn = Connection::connect();
@@ -182,8 +182,8 @@ echo json_decode($reply->data, true)['result']; // 8
 ### Core — Headers
 
 ```php
-use Nats\Headers;
-use Nats\Message;
+use Sofascore\Nats\Headers;
+use Sofascore\Nats\Message;
 
 $headers = new Headers(['Content-Type' => 'application/json', 'X-Trace' => 'abc']);
 $msg = new Message(subject: 'events.order', data: '{}', headers: $headers);
@@ -233,8 +233,8 @@ $options = new ConnectionOptions(
 ### JetStream — Streams
 
 ```php
-use Nats\JetStream\Stream\StreamConfig;
-use Nats\Enum\{RetentionPolicy, StorageType, DiscardPolicy};
+use Sofascore\Nats\JetStream\Stream\StreamConfig;
+use Sofascore\Nats\Enum\{RetentionPolicy, StorageType, DiscardPolicy};
 
 $js = $conn->jetStream();
 
@@ -258,8 +258,8 @@ $stream->purge();
 ### JetStream — Consumers
 
 ```php
-use Nats\JetStream\Consumer\{ConsumerConfig, FetchOptions, ConsumeOptions};
-use Nats\Enum\{DeliveryPolicy, AckPolicy};
+use Sofascore\Nats\JetStream\Consumer\{ConsumerConfig, FetchOptions, ConsumeOptions};
+use Sofascore\Nats\Enum\{DeliveryPolicy, AckPolicy};
 
 $consumer = $stream->createOrUpdateConsumer(new ConsumerConfig(
     name: 'processor',
@@ -292,7 +292,7 @@ foreach ($msgs as $msg) {
 ### JetStream — Publish Options
 
 ```php
-use Nats\JetStream\Publish\PublishOptions;
+use Sofascore\Nats\JetStream\Publish\PublishOptions;
 
 // Deduplication
 $js->publish('orders.new', $data, PublishOptions::msgId('order-1'));
@@ -313,7 +313,7 @@ processes incoming replies via `process()`, `wait()`, or your own application lo
 ### Key-Value Store
 
 ```php
-use Nats\KeyValue\KeyValueConfig;
+use Sofascore\Nats\KeyValue\KeyValueConfig;
 
 $kv = $js->createKeyValue(new KeyValueConfig(
     bucket: 'settings',
@@ -343,7 +343,7 @@ foreach ($watcher as $entry) {
 ### Object Store
 
 ```php
-use Nats\ObjectStore\ObjectStoreConfig;
+use Sofascore\Nats\ObjectStore\ObjectStoreConfig;
 
 $store = $js->createObjectStore(new ObjectStoreConfig(
     bucket: 'files',
@@ -368,7 +368,7 @@ $store->delete('config.json');
 ### Micro Services
 
 ```php
-use Nats\Micro\{Service, ServiceConfig, EndpointConfig, RequestInterface};
+use Sofascore\Nats\Micro\{Service, ServiceConfig, EndpointConfig, RequestInterface};
 
 $svc = Service::create($conn, new ServiceConfig(
     name: 'calculator',

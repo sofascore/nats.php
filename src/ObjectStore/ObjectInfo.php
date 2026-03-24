@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Nats\ObjectStore;
+namespace Sofascore\Nats\ObjectStore;
 
-use Nats\Headers;
-use Nats\Internal\TypeCast as T;
+use Sofascore\Nats\Headers;
+use Sofascore\Nats\Internal\TypeCast as T;
 
 readonly class ObjectInfo
 {

@@ -8,8 +8,8 @@
 
 require_once __DIR__ . '/../../../vendor/autoload.php';
 
-use Nats\Connection;
-use Nats\ConnectionOptions;
+use Sofascore\Nats\Connection;
+use Sofascore\Nats\ConnectionOptions;
 
 // 1. User/Password
 $options = (new ConnectionOptions())

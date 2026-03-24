@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Nats;
+namespace Sofascore\Nats;
 
 /**
  * @implements \IteratorAggregate<string, list<string>>

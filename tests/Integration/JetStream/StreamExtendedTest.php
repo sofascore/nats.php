@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace Nats\Tests\Integration\JetStream;
+namespace Sofascore\Nats\Tests\Integration\JetStream;
 
-use Nats\Tests\Integration\NatsUrlTrait;
-use Nats\Connection;
-use Nats\Enum\AckPolicy;
-use Nats\Enum\StorageType;
-use Nats\JetStream\Consumer\ConsumerConfig;
-use Nats\JetStream\JetStreamContext;
-use Nats\JetStream\Stream\StreamConfig;
+use Sofascore\Nats\Tests\Integration\NatsUrlTrait;
+use Sofascore\Nats\Connection;
+use Sofascore\Nats\Enum\AckPolicy;
+use Sofascore\Nats\Enum\StorageType;
+use Sofascore\Nats\JetStream\Consumer\ConsumerConfig;
+use Sofascore\Nats\JetStream\JetStreamContext;
+use Sofascore\Nats\JetStream\Stream\StreamConfig;
 use PHPUnit\Framework\TestCase;
 
 final class StreamExtendedTest extends TestCase
@@ -130,7 +130,7 @@ final class StreamExtendedTest extends TestCase
             // Resume consumer
             $resumeResponse = $stream->resumeConsumer($consumerName);
             self::assertFalse($resumeResponse->paused);
-        } catch (\Nats\JetStream\Error\JetStreamException $e) {
+        } catch (\Sofascore\Nats\JetStream\Error\JetStreamException $e) {
             // Consumer pause/resume requires NATS 2.11+
             if (str_contains($e->getMessage(), 'unknown') || str_contains($e->getMessage(), 'not supported')) {
                 self::markTestSkipped('Consumer pause/resume not supported on this NATS server version');

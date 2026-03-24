@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace Nats\JetStream\Consumer;
+namespace Sofascore\Nats\JetStream\Consumer;
 
-use Nats\Headers;
-use Nats\Inbox;
-use Nats\JetStream\JetStreamContext;
-use Nats\JetStream\Message\JetStreamMessage;
-use Nats\JetStream\Message\JetStreamMsg;
-use Nats\TimeoutException;
+use Sofascore\Nats\Headers;
+use Sofascore\Nats\Inbox;
+use Sofascore\Nats\JetStream\JetStreamContext;
+use Sofascore\Nats\JetStream\Message\JetStreamMessage;
+use Sofascore\Nats\JetStream\Message\JetStreamMsg;
+use Sofascore\Nats\TimeoutException;
 
 final class Consumer implements ConsumerInterface
 {

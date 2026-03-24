@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Nats\ObjectStore;
+namespace Sofascore\Nats\ObjectStore;
 
-use Nats\Internal\TypeCast as T;
-use Nats\JetStream\JetStreamContext;
-use Nats\KeyValue\WatchOptions;
+use Sofascore\Nats\Internal\TypeCast as T;
+use Sofascore\Nats\JetStream\JetStreamContext;
+use Sofascore\Nats\KeyValue\WatchOptions;
 
 /**
  * @implements \IteratorAggregate<int, ObjectInfo>

@@ -10,11 +10,11 @@
 
 require_once __DIR__ . '/../../../vendor/autoload.php';
 
-use Nats\Connection;
-use Nats\Headers;
-use Nats\JetStream\Publish\PublishOptions;
-use Nats\JetStream\Stream\StreamConfig;
-use Nats\Message;
+use Sofascore\Nats\Connection;
+use Sofascore\Nats\Headers;
+use Sofascore\Nats\JetStream\Publish\PublishOptions;
+use Sofascore\Nats\JetStream\Stream\StreamConfig;
+use Sofascore\Nats\Message;
 
 $conn = Connection::connect();
 $js = $conn->jetStream();

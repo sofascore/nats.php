@@ -9,16 +9,16 @@
 
 require_once __DIR__ . '/../../../vendor/autoload.php';
 
-use Nats\BadSubjectException;
-use Nats\Connection;
-use Nats\ConnectionClosedException;
-use Nats\ConnectionOptions;
-use Nats\MaxPayloadException;
-use Nats\NatsException;
-use Nats\SlowConsumerException;
-use Nats\TimeoutException;
-use Nats\JetStream\Error\JetStreamException;
-use Nats\JetStream\Stream\StreamConfig;
+use Sofascore\Nats\BadSubjectException;
+use Sofascore\Nats\Connection;
+use Sofascore\Nats\ConnectionClosedException;
+use Sofascore\Nats\ConnectionOptions;
+use Sofascore\Nats\MaxPayloadException;
+use Sofascore\Nats\NatsException;
+use Sofascore\Nats\SlowConsumerException;
+use Sofascore\Nats\TimeoutException;
+use Sofascore\Nats\JetStream\Error\JetStreamException;
+use Sofascore\Nats\JetStream\Stream\StreamConfig;
 
 // --- 1. Global error callback ---
 // Asynchronous errors (slow consumer, permission violations, etc.)

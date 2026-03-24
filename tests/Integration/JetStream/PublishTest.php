@@ -2,17 +2,17 @@
 
 declare(strict_types=1);
 
-namespace Nats\Tests\Integration\JetStream;
+namespace Sofascore\Nats\Tests\Integration\JetStream;
 
-use Nats\Tests\Integration\NatsUrlTrait;
-use Nats\Connection;
-use Nats\Enum\StorageType;
-use Nats\Headers;
-use Nats\JetStream\Error\JetStreamException;
-use Nats\JetStream\JetStreamContext;
-use Nats\JetStream\Publish\PublishOptions;
-use Nats\JetStream\Stream\StreamConfig;
-use Nats\Message;
+use Sofascore\Nats\Tests\Integration\NatsUrlTrait;
+use Sofascore\Nats\Connection;
+use Sofascore\Nats\Enum\StorageType;
+use Sofascore\Nats\Headers;
+use Sofascore\Nats\JetStream\Error\JetStreamException;
+use Sofascore\Nats\JetStream\JetStreamContext;
+use Sofascore\Nats\JetStream\Publish\PublishOptions;
+use Sofascore\Nats\JetStream\Stream\StreamConfig;
+use Sofascore\Nats\Message;
 use PHPUnit\Framework\TestCase;
 
 final class PublishTest extends TestCase

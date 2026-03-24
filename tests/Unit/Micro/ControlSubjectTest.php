@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Nats\Tests\Unit\Micro;
+namespace Sofascore\Nats\Tests\Unit\Micro;
 
-use Nats\Enum\ServiceVerb;
-use Nats\Micro\Service;
+use Sofascore\Nats\Enum\ServiceVerb;
+use Sofascore\Nats\Micro\Service;
 use PHPUnit\Framework\TestCase;
 
 final class ControlSubjectTest extends TestCase

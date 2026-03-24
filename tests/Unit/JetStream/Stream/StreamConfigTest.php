@@ -2,16 +2,16 @@
 
 declare(strict_types=1);
 
-namespace Nats\Tests\Unit\JetStream\Stream;
+namespace Sofascore\Nats\Tests\Unit\JetStream\Stream;
 
-use Nats\Enum\DiscardPolicy;
-use Nats\Enum\RetentionPolicy;
-use Nats\Enum\StorageType;
-use Nats\Enum\StoreCompression;
-use Nats\JetStream\Stream\StreamConfig;
-use Nats\JetStream\Stream\StreamConsumerLimits;
-use Nats\JetStream\Stream\StreamSource;
-use Nats\JetStream\Stream\SubjectTransform;
+use Sofascore\Nats\Enum\DiscardPolicy;
+use Sofascore\Nats\Enum\RetentionPolicy;
+use Sofascore\Nats\Enum\StorageType;
+use Sofascore\Nats\Enum\StoreCompression;
+use Sofascore\Nats\JetStream\Stream\StreamConfig;
+use Sofascore\Nats\JetStream\Stream\StreamConsumerLimits;
+use Sofascore\Nats\JetStream\Stream\StreamSource;
+use Sofascore\Nats\JetStream\Stream\SubjectTransform;
 use PHPUnit\Framework\TestCase;
 
 final class StreamConfigTest extends TestCase

@@ -2,16 +2,16 @@
 
 declare(strict_types=1);
 
-namespace Nats\JetStream\Stream;
+namespace Sofascore\Nats\JetStream\Stream;
 
-use Nats\Internal\TypeCast as T;
-use Nats\JetStream\Consumer\Consumer;
-use Nats\JetStream\Consumer\ConsumerConfig;
-use Nats\JetStream\Consumer\ConsumerInterface;
-use Nats\JetStream\Consumer\ConsumerPauseResponse;
-use Nats\JetStream\Consumer\OrderedConsumer;
-use Nats\JetStream\Consumer\OrderedConsumerConfig;
-use Nats\JetStream\JetStreamContext;
+use Sofascore\Nats\Internal\TypeCast as T;
+use Sofascore\Nats\JetStream\Consumer\Consumer;
+use Sofascore\Nats\JetStream\Consumer\ConsumerConfig;
+use Sofascore\Nats\JetStream\Consumer\ConsumerInterface;
+use Sofascore\Nats\JetStream\Consumer\ConsumerPauseResponse;
+use Sofascore\Nats\JetStream\Consumer\OrderedConsumer;
+use Sofascore\Nats\JetStream\Consumer\OrderedConsumerConfig;
+use Sofascore\Nats\JetStream\JetStreamContext;
 
 final class Stream implements StreamInterface
 {
@@ -221,7 +221,7 @@ final class Stream implements StreamInterface
         if ($reply->headers !== null) {
             $status = $reply->headers->get('Status');
             if ($status !== null && str_starts_with(trim($status), '404')) {
-                throw new \Nats\NatsException("No message found");
+                throw new \Sofascore\Nats\NatsException("No message found");
             }
         }
 
