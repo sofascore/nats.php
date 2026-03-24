@@ -11,5 +11,9 @@ readonly class FetchOptions
         public ?float $heartbeat = null,
         public ?int $minPending = null,
         public ?int $minAckPending = null,
-    ) {}
+    ) {
+        if ($this->timeout <= 0) {
+            throw new \InvalidArgumentException('timeout must be greater than 0');
+        }
+    }
 }

@@ -55,7 +55,9 @@ final class Consumer implements ConsumerInterface
         );
 
         $received = 0;
-        $deadline = microtime(true) + $opts->timeout;
+        // Keep the client alive slightly longer than server expires so messages sent
+        // at the expiry boundary can still be received before unsubscribing.
+        $deadline = microtime(true) + $opts->timeout + 1.0;
 
         while ($received < $batch && microtime(true) < $deadline) {
             try {
@@ -111,7 +113,9 @@ final class Consumer implements ConsumerInterface
         );
 
         $totalBytes = 0;
-        $deadline = microtime(true) + $opts->timeout;
+        // Keep the client alive slightly longer than server expires so messages sent
+        // at the expiry boundary can still be received before unsubscribing.
+        $deadline = microtime(true) + $opts->timeout + 1.0;
 
         while ($totalBytes < $maxBytes && microtime(true) < $deadline) {
             try {
