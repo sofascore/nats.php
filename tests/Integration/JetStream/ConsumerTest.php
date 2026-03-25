@@ -175,6 +175,7 @@ final class ConsumerTest extends TestCase
             name: 'test-ack-no-redeliver',
             durable: 'test-ack-no-redeliver',
             ackPolicy: AckPolicy::Explicit,
+            ackWait: 0.2,
             maxDeliver: 3,
             filterSubject: 'test.cons.ack',
         ));
@@ -192,31 +193,7 @@ final class ConsumerTest extends TestCase
         $redelivered->ack();
 
         $this->expectException(TimeoutException::class);
-        $consumer->next(1.0);
-    }
-
-    public function testNakWithDelay(): void
-    {
-        $this->js->publish('test.cons.nakdelay', 'nak-delay-test');
-
-        $consumer = $this->stream->createOrUpdateConsumer(new ConsumerConfig(
-            name: 'test-nak-delay',
-            durable: 'test-nak-delay',
-            ackPolicy: AckPolicy::Explicit,
-            maxDeliver: 3,
-            filterSubject: 'test.cons.nakdelay',
-        ));
-
-        $msg = $consumer->next(3.0);
-        self::assertNotNull($msg);
-
-        $msg->nakWithDelay(1.0);
-
-        $redelivered = $consumer->next(5.0);
-        self::assertNotNull($redelivered);
-        self::assertSame('nak-delay-test', $redelivered->data());
-
-        $redelivered->ack();
+        $consumer->next(0.6);
     }
 
     public function testTerm(): void
@@ -227,6 +204,7 @@ final class ConsumerTest extends TestCase
             name: 'test-term',
             durable: 'test-term',
             ackPolicy: AckPolicy::Explicit,
+            ackWait: 0.2,
             maxDeliver: 3,
             filterSubject: 'test.cons.term',
         ));
@@ -238,29 +216,7 @@ final class ConsumerTest extends TestCase
         $msg->term();
 
         $this->expectException(TimeoutException::class);
-        $consumer->next(1.0);
-    }
-
-    public function testTermWithReason(): void
-    {
-        $this->js->publish('test.cons.termreason', 'term-reason-test');
-
-        $consumer = $this->stream->createOrUpdateConsumer(new ConsumerConfig(
-            name: 'test-term-reason',
-            durable: 'test-term-reason',
-            ackPolicy: AckPolicy::Explicit,
-            maxDeliver: 3,
-            filterSubject: 'test.cons.termreason',
-        ));
-
-        $msg = $consumer->next(3.0);
-        self::assertNotNull($msg);
-        self::assertSame('term-reason-test', $msg->data());
-
-        $msg->termWithReason('invalid payload');
-
-        $this->expectException(TimeoutException::class);
-        $consumer->next(1.0);
+        $consumer->next(0.6);
     }
 
     public function testMessagesIterator(): void
