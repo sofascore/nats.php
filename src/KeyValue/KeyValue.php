@@ -198,7 +198,7 @@ final class KeyValue implements KeyValueInterface
         $deletedKeys = [];
         $defaultTtl = 30 * 60.0; // 30 minutes, matching nats.go default
         $effectiveTtl = ($ttl === null || $ttl === 0.0) ? $defaultTtl : $ttl;
-        $olderThan = (new \DateTimeImmutable())->modify(sprintf('-%F seconds', abs($effectiveTtl)));
+        $cutoffTs = microtime(true) - abs($effectiveTtl);
 
         while (true) {
             $batch = $consumer->fetch(1000, new FetchOptions(timeout: 1.0));
@@ -240,7 +240,8 @@ final class KeyValue implements KeyValueInterface
             $keep = null;
 
             if ($effectiveTtl > 0) {
-                if ($timestamp > $olderThan) {
+                $markerTs = (float) $timestamp->format('U.u');
+                if ($markerTs > $cutoffTs) {
                     $keep = 1;
                 }
             }
