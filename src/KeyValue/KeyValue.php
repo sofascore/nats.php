@@ -6,10 +6,13 @@ namespace Sofascore\Nats\KeyValue;
 
 use Sofascore\Nats\Enum\KeyValueOperation;
 use Sofascore\Nats\Headers;
+use Sofascore\Nats\JetStream\Consumer\FetchOptions;
+use Sofascore\Nats\JetStream\Consumer\OrderedConsumerConfig;
 use Sofascore\Nats\JetStream\Error\JetStreamException;
 use Sofascore\Nats\JetStream\JetStreamContext;
 use Sofascore\Nats\JetStream\Message\JetStreamMessage;
 use Sofascore\Nats\JetStream\Publish\PublishOptions;
+use Sofascore\Nats\JetStream\Stream\StreamPurgeOptions;
 use Sofascore\Nats\Message;
 use Sofascore\Nats\NatsException;
 
@@ -185,7 +188,69 @@ final class KeyValue implements KeyValueInterface
     public function purgeDeletes(?float $ttl = null): void
     {
         $stream = $this->js->stream("KV_{$this->bucketName}");
-        $stream->purge();
+        $prefix = "\$KV.{$this->bucketName}.";
+
+        $consumer = $stream->orderedConsumer(new OrderedConsumerConfig(
+            headersOnly: true,
+        ));
+
+        // Track the latest operation and timestamp per key
+        $deletedKeys = [];
+        $defaultTtl = 30 * 60.0; // 30 minutes, matching nats.go default
+        $effectiveTtl = ($ttl === null || $ttl === 0.0) ? $defaultTtl : $ttl;
+        $cutoffTs = microtime(true) - abs($effectiveTtl);
+
+        while (true) {
+            $batch = $consumer->fetch(1000, new FetchOptions(timeout: 1.0));
+
+            $count = 0;
+            foreach ($batch->messages() as $msg) {
+                $count++;
+                $subject = $msg->subject();
+                $key = substr($subject, strlen($prefix));
+
+                $operation = KeyValueOperation::Put;
+                $headers = $msg->headers();
+                if ($headers !== null) {
+                    $kvOp = $headers->get('KV-Operation');
+                    if ($kvOp !== null) {
+                        $operation = KeyValueOperation::from($kvOp);
+                    }
+                }
+
+                if ($operation === KeyValueOperation::Put) {
+                    unset($deletedKeys[$key]);
+                } else {
+                    $deletedKeys[$key] = $msg->metadata()->timestamp;
+                }
+
+                $msg->ack();
+            }
+
+            if ($count === 0) {
+                break;
+            }
+        }
+
+        // Purge subjects whose latest operation is DEL or PURGE.
+        // Negative TTL means always remove markers.
+        // Markers older than threshold: purge entire subject (including tombstone).
+        // Markers newer than threshold: purge with keep=1 (reclaim history, preserve tombstone).
+        foreach ($deletedKeys as $key => $timestamp) {
+            $keep = null;
+
+            if ($effectiveTtl > 0) {
+                $markerTs = (float) $timestamp->format('U.u');
+                if ($markerTs > $cutoffTs) {
+                    $keep = 1;
+                }
+            }
+
+            $stream->purge(new StreamPurgeOptions(
+                filter: $prefix . $key,
+                keep: $keep,
+            ));
+        }
     }
 
     public function listKeys(): \Generator
