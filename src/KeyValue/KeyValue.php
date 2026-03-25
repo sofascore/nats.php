@@ -4,23 +4,15 @@ declare(strict_types=1);
 
 namespace Sofascore\Nats\KeyValue;
 
-use Nats\Enum\KeyValueOperation;
-use Nats\Headers;
-use Nats\JetStream\Consumer\FetchOptions;
-use Nats\JetStream\Consumer\OrderedConsumerConfig;
-use Nats\JetStream\Error\JetStreamException;
-use Nats\JetStream\JetStreamContext;
-use Nats\JetStream\Message\JetStreamMessage;
-use Nats\JetStream\Publish\PublishOptions;
-use Nats\JetStream\Stream\StreamPurgeOptions;
-use Nats\Message;
-use Nats\NatsException;
 use Sofascore\Nats\Enum\KeyValueOperation;
 use Sofascore\Nats\Headers;
+use Sofascore\Nats\JetStream\Consumer\FetchOptions;
+use Sofascore\Nats\JetStream\Consumer\OrderedConsumerConfig;
 use Sofascore\Nats\JetStream\Error\JetStreamException;
 use Sofascore\Nats\JetStream\JetStreamContext;
 use Sofascore\Nats\JetStream\Message\JetStreamMessage;
 use Sofascore\Nats\JetStream\Publish\PublishOptions;
+use Sofascore\Nats\JetStream\Stream\StreamPurgeOptions;
 use Sofascore\Nats\Message;
 use Sofascore\Nats\NatsException;
 
@@ -204,7 +196,8 @@ final class KeyValue implements KeyValueInterface
 
         // Track the latest operation and timestamp per key
         $deletedKeys = [];
-        $olderThan = $ttl !== null ? new \DateTimeImmutable("-{$ttl} seconds") : null;
+        $defaultTtl = 30 * 60; // 30 minutes, matching nats.go default
+        $olderThan = new \DateTimeImmutable(sprintf('-%d seconds', $ttl ?? $defaultTtl));
 
         while (true) {
             $batch = $consumer->fetch(1000, new FetchOptions(timeout: 1.0));
@@ -225,7 +218,6 @@ final class KeyValue implements KeyValueInterface
                 }
 
                 if ($operation === KeyValueOperation::Put) {
-                    // Key is alive — remove from deleted set if previously marked
                     unset($deletedKeys[$key]);
                 } else {
                     $deletedKeys[$key] = $msg->metadata()->timestamp;
@@ -239,14 +231,22 @@ final class KeyValue implements KeyValueInterface
             }
         }
 
-        // Purge only subjects whose latest operation is DEL or PURGE
+        // Purge subjects whose latest operation is DEL or PURGE.
+        // Negative TTL means always remove markers.
+        // Markers older than threshold: purge entire subject (including tombstone).
+        // Markers newer than threshold: purge with keep=1 (reclaim history, preserve tombstone).
         foreach ($deletedKeys as $key => $timestamp) {
-            if ($olderThan !== null && $timestamp > $olderThan) {
-                continue;
+            $keep = null;
+
+            if ($ttl === null || $ttl >= 0) {
+                if ($timestamp > $olderThan) {
+                    $keep = 1;
+                }
             }
 
             $stream->purge(new StreamPurgeOptions(
                 filter: $prefix . $key,
+                keep: $keep,
             ));
         }
     }

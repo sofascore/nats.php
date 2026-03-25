@@ -203,13 +203,16 @@ final class KeyValueExtendedTest extends TestCase
         $kv->put('to-delete', 'gone');
         $kv->delete('to-delete');
 
-        $kv->purgeDeletes();
+        // Use negative TTL to always remove markers
+        $kv->purgeDeletes(-1.0);
 
-        // Live keys must still be present
+        // Live keys must still be present with full history
         self::assertSame('value1', $kv->get('alive')->value);
         self::assertSame('value2', $kv->get('also-alive')->value);
+        self::assertCount(1, $kv->history('alive'));
+        self::assertCount(1, $kv->history('also-alive'));
 
-        // Deleted key's tombstone should be purged
+        // Deleted key's tombstone should be fully purged (empty history)
         $this->expectException(NatsException::class);
         $kv->get('to-delete');
     }
@@ -226,7 +229,8 @@ final class KeyValueExtendedTest extends TestCase
         $kv->put('to-purge', 'v2');
         $kv->purge('to-purge');
 
-        $kv->purgeDeletes();
+        // Use negative TTL to always remove markers
+        $kv->purgeDeletes(-1.0);
 
         // Live key preserved
         self::assertSame('keeper', $kv->get('alive')->value);
@@ -248,9 +252,48 @@ final class KeyValueExtendedTest extends TestCase
         $kv->delete('revived');
         $kv->put('revived', 'back');
 
-        $kv->purgeDeletes();
+        $kv->purgeDeletes(-1.0);
 
         self::assertSame('back', $kv->get('revived')->value);
+        self::assertCount(3, $kv->history('revived'));
+    }
+
+    public function testPurgeDeletesRecentMarkerKeepsOneWithDefaultTtl(): void
+    {
+        $kv = $this->js->createKeyValue(new KeyValueConfig(
+            bucket: $this->bucket,
+            history: 5,
+        ));
+
+        $kv->put('key', 'v1');
+        $kv->put('key', 'v2');
+        $kv->delete('key');
+
+        // Default TTL is 30 min — the just-created tombstone is newer,
+        // so purgeDeletes should keep=1 (preserve the tombstone, reclaim old revisions)
+        $kv->purgeDeletes();
+
+        $history = $kv->history('key');
+        self::assertCount(1, $history);
+        self::assertSame(KeyValueOperation::Delete, $history[0]->operation);
+    }
+
+    public function testPurgeDeletesNegativeTtlAlwaysRemovesMarker(): void
+    {
+        $kv = $this->js->createKeyValue(new KeyValueConfig(
+            bucket: $this->bucket,
+            history: 5,
+        ));
+
+        $kv->put('key', 'v1');
+        $kv->put('key', 'v2');
+        $kv->delete('key');
+
+        // Negative TTL: always remove marker entirely
+        $kv->purgeDeletes(-1.0);
+
+        $this->expectException(NatsException::class);
+        $kv->get('key');
     }
 
     public function testPurgeWithTtl(): void
