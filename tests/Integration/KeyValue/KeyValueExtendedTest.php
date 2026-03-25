@@ -191,6 +191,68 @@ final class KeyValueExtendedTest extends TestCase
         self::assertSame($rev, $entry->revision);
     }
 
+    public function testPurgeDeletesPreservesLiveKeys(): void
+    {
+        $kv = $this->js->createKeyValue(new KeyValueConfig(
+            bucket: $this->bucket,
+            history: 5,
+        ));
+
+        $kv->put('alive', 'value1');
+        $kv->put('also-alive', 'value2');
+        $kv->put('to-delete', 'gone');
+        $kv->delete('to-delete');
+
+        $kv->purgeDeletes();
+
+        // Live keys must still be present
+        self::assertSame('value1', $kv->get('alive')->value);
+        self::assertSame('value2', $kv->get('also-alive')->value);
+
+        // Deleted key's tombstone should be purged
+        $this->expectException(NatsException::class);
+        $kv->get('to-delete');
+    }
+
+    public function testPurgeDeletesRemovesPurgedKeys(): void
+    {
+        $kv = $this->js->createKeyValue(new KeyValueConfig(
+            bucket: $this->bucket,
+            history: 5,
+        ));
+
+        $kv->put('alive', 'keeper');
+        $kv->put('to-purge', 'v1');
+        $kv->put('to-purge', 'v2');
+        $kv->purge('to-purge');
+
+        $kv->purgeDeletes();
+
+        // Live key preserved
+        self::assertSame('keeper', $kv->get('alive')->value);
+
+        // Purged key's tombstone should be removed
+        $this->expectException(NatsException::class);
+        $kv->get('to-purge');
+    }
+
+    public function testPurgeDeletesOnlyDeletedNotReput(): void
+    {
+        $kv = $this->js->createKeyValue(new KeyValueConfig(
+            bucket: $this->bucket,
+            history: 5,
+        ));
+
+        // Delete a key then re-put it — it should survive purgeDeletes
+        $kv->put('revived', 'first');
+        $kv->delete('revived');
+        $kv->put('revived', 'back');
+
+        $kv->purgeDeletes();
+
+        self::assertSame('back', $kv->get('revived')->value);
+    }
+
     public function testPurgeWithTtl(): void
     {
         $kv = $this->js->createKeyValue(new KeyValueConfig(

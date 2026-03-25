@@ -4,6 +4,17 @@ declare(strict_types=1);
 
 namespace Sofascore\Nats\KeyValue;
 
+use Nats\Enum\KeyValueOperation;
+use Nats\Headers;
+use Nats\JetStream\Consumer\FetchOptions;
+use Nats\JetStream\Consumer\OrderedConsumerConfig;
+use Nats\JetStream\Error\JetStreamException;
+use Nats\JetStream\JetStreamContext;
+use Nats\JetStream\Message\JetStreamMessage;
+use Nats\JetStream\Publish\PublishOptions;
+use Nats\JetStream\Stream\StreamPurgeOptions;
+use Nats\Message;
+use Nats\NatsException;
 use Sofascore\Nats\Enum\KeyValueOperation;
 use Sofascore\Nats\Headers;
 use Sofascore\Nats\JetStream\Error\JetStreamException;
@@ -185,7 +196,59 @@ final class KeyValue implements KeyValueInterface
     public function purgeDeletes(?float $ttl = null): void
     {
         $stream = $this->js->stream("KV_{$this->bucketName}");
-        $stream->purge();
+        $prefix = "\$KV.{$this->bucketName}.";
+
+        $consumer = $stream->orderedConsumer(new OrderedConsumerConfig(
+            headersOnly: true,
+        ));
+
+        // Track the latest operation and timestamp per key
+        $deletedKeys = [];
+        $olderThan = $ttl !== null ? new \DateTimeImmutable("-{$ttl} seconds") : null;
+
+        while (true) {
+            $batch = $consumer->fetch(1000, new FetchOptions(timeout: 1.0));
+
+            $count = 0;
+            foreach ($batch->messages() as $msg) {
+                $count++;
+                $subject = $msg->subject();
+                $key = substr($subject, strlen($prefix));
+
+                $operation = KeyValueOperation::Put;
+                $headers = $msg->headers();
+                if ($headers !== null) {
+                    $kvOp = $headers->get('KV-Operation');
+                    if ($kvOp !== null) {
+                        $operation = KeyValueOperation::from($kvOp);
+                    }
+                }
+
+                if ($operation === KeyValueOperation::Put) {
+                    // Key is alive — remove from deleted set if previously marked
+                    unset($deletedKeys[$key]);
+                } else {
+                    $deletedKeys[$key] = $msg->metadata()->timestamp;
+                }
+
+                $msg->ack();
+            }
+
+            if ($count === 0) {
+                break;
+            }
+        }
+
+        // Purge only subjects whose latest operation is DEL or PURGE
+        foreach ($deletedKeys as $key => $timestamp) {
+            if ($olderThan !== null && $timestamp > $olderThan) {
+                continue;
+            }
+
+            $stream->purge(new StreamPurgeOptions(
+                filter: $prefix . $key,
+            ));
+        }
     }
 
     public function listKeys(): \Generator
