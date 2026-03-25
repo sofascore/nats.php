@@ -16,6 +16,7 @@ use Sofascore\Nats\JetStream\Consumer\OrderedConsumerConfig;
 use Sofascore\Nats\JetStream\JetStreamContext;
 use Sofascore\Nats\JetStream\Stream\StreamConfig;
 use Sofascore\Nats\JetStream\Stream\StreamInterface;
+use Sofascore\Nats\TimeoutException;
 use PHPUnit\Framework\TestCase;
 
 final class ConsumerTest extends TestCase
@@ -164,6 +165,58 @@ final class ConsumerTest extends TestCase
         $msg->term();
 
         self::assertTrue(true); // No exceptions = success
+    }
+
+    public function testAckPreventsRedelivery(): void
+    {
+        $this->js->publish('test.cons.ack', 'ack-test');
+
+        $consumer = $this->stream->createOrUpdateConsumer(new ConsumerConfig(
+            name: 'test-ack-no-redeliver',
+            durable: 'test-ack-no-redeliver',
+            ackPolicy: AckPolicy::Explicit,
+            ackWait: 0.2,
+            maxDeliver: 3,
+            filterSubject: 'test.cons.ack',
+        ));
+
+        // nak causes redelivery
+        $msg = $consumer->next(3.0);
+        self::assertNotNull($msg);
+        $msg->nak();
+
+        $redelivered = $consumer->next(3.0);
+        self::assertNotNull($redelivered);
+        self::assertSame('ack-test', $redelivered->data());
+
+        // ack stops redelivery
+        $redelivered->ack();
+
+        $this->expectException(TimeoutException::class);
+        $consumer->next(0.6);
+    }
+
+    public function testTerm(): void
+    {
+        $this->js->publish('test.cons.term', 'term-test');
+
+        $consumer = $this->stream->createOrUpdateConsumer(new ConsumerConfig(
+            name: 'test-term',
+            durable: 'test-term',
+            ackPolicy: AckPolicy::Explicit,
+            ackWait: 0.2,
+            maxDeliver: 3,
+            filterSubject: 'test.cons.term',
+        ));
+
+        $msg = $consumer->next(3.0);
+        self::assertNotNull($msg);
+        self::assertSame('term-test', $msg->data());
+
+        $msg->term();
+
+        $this->expectException(TimeoutException::class);
+        $consumer->next(0.6);
     }
 
     public function testMessagesIterator(): void
