@@ -196,8 +196,9 @@ final class KeyValue implements KeyValueInterface
 
         // Track the latest operation and timestamp per key
         $deletedKeys = [];
-        $defaultTtl = 30 * 60; // 30 minutes, matching nats.go default
-        $olderThan = new \DateTimeImmutable(sprintf('-%d seconds', $ttl ?? $defaultTtl));
+        $defaultTtl = 30 * 60.0; // 30 minutes, matching nats.go default
+        $effectiveTtl = ($ttl === null || $ttl === 0.0) ? $defaultTtl : $ttl;
+        $olderThan = (new \DateTimeImmutable())->modify(sprintf('-%F seconds', abs($effectiveTtl)));
 
         while (true) {
             $batch = $consumer->fetch(1000, new FetchOptions(timeout: 1.0));
@@ -238,7 +239,7 @@ final class KeyValue implements KeyValueInterface
         foreach ($deletedKeys as $key => $timestamp) {
             $keep = null;
 
-            if ($ttl === null || $ttl >= 0) {
+            if ($effectiveTtl > 0) {
                 if ($timestamp > $olderThan) {
                     $keep = 1;
                 }
