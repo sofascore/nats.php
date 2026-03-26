@@ -62,6 +62,7 @@ final class Connection
 
     // Reconnect buffer
     private string $reconnectBuffer = '';
+    private bool $closedByUser = false;
 
     private function __construct() {}
 
@@ -254,6 +255,7 @@ final class Connection
             return;
         }
 
+        $this->closedByUser = true;
         $this->status = ConnectionStatus::Closed;
         $this->log('info', 'Connection closed');
         $this->flushWrite();
@@ -277,7 +279,7 @@ final class Connection
     private function callbacksSuppressed(): bool
     {
         return $this->options->noCallbacksAfterClientClose
-            && $this->status === ConnectionStatus::Closed;
+            && $this->closedByUser;
     }
 
     public function drain(): void
