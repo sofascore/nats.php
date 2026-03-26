@@ -613,6 +613,9 @@ final class JetStreamContext
                 }
 
                 return $response;
+            } catch (JetStreamException $e) {
+                // API error response from server - don't retry, the server explicitly rejected the request
+                throw $e;
             } catch (\Throwable $e) {
                 $lastException = $e;
 
