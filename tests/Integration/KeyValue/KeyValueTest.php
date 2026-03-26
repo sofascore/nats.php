@@ -266,6 +266,19 @@ final class KeyValueTest extends TestCase
         self::assertSame(['a.one'], $keys);
     }
 
+    public function testListKeysIncludesKeyRecreatedAfterDelete(): void
+    {
+        $kv = $this->createBucket();
+
+        $kv->put('reborn', 'v1');
+        $kv->delete('reborn');
+        $kv->put('reborn', 'v2');
+
+        $keys = iterator_to_array($kv->listKeys(), false);
+
+        self::assertSame(['reborn'], $keys);
+    }
+
     public function testHistory(): void
     {
         $kv = $this->createBucket();
