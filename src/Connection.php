@@ -69,6 +69,7 @@ final class Connection
 
     // Reconnect buffer
     private string $reconnectBuffer = '';
+    private bool $shutdownInitiated = false;
 
     private function __construct() {}
 
@@ -309,6 +310,7 @@ final class Connection
             return;
         }
 
+        $this->shutdownInitiated = true;
         $this->status = ConnectionStatus::Closed;
         $this->log('info', 'Connection closed');
         $this->flushWrite();
@@ -319,13 +321,27 @@ final class Connection
         $this->respMap = [];
 
         $handler = $this->onCloseHandler;
-        if ($handler !== null) {
+        if ($handler !== null && !$this->callbacksSuppressed()) {
             $handler($this);
         }
     }
 
+    /**
+     * Returns true when callbacks should be suppressed.
+     *
+     * When the noCallbacksAfterClientClose option is enabled and the
+     * connection has been closed or drained, all callbacks are skipped.
+     * This mirrors the Go client's NoCallbacksAfterClientClose behaviour.
+     */
+    private function callbacksSuppressed(): bool
+    {
+        return $this->options->noCallbacksAfterClientClose
+            && $this->shutdownInitiated;
+    }
+
     public function drain(): void
     {
+        $this->shutdownInitiated = true;
         $this->log('info', 'Draining connection');
         $this->status = ConnectionStatus::DrainingSubscriptions;
 
@@ -1055,7 +1071,7 @@ final class Connection
         );
 
         $handler = $this->onErrorHandler;
-        if ($handler !== null) {
+        if ($handler !== null && !$this->callbacksSuppressed()) {
             $handler($this, $this->lastError);
         }
     }
@@ -1193,7 +1209,7 @@ final class Connection
         $this->lastError = new NatsException("Server error: {$errMsg}");
 
         $handler = $this->onErrorHandler;
-        if ($handler !== null) {
+        if ($handler !== null && !$this->callbacksSuppressed()) {
             $handler($this, $this->lastError);
             return;
         }
@@ -1226,7 +1242,7 @@ final class Connection
                 if (!in_array($normalized, $this->serverPool, true)) {
                     $this->serverPool[] = $normalized;
                     $handler = $this->options->onDiscoveredServers;
-                    if ($handler !== null) {
+                    if ($handler !== null && !$this->callbacksSuppressed()) {
                         $handler($this);
                     }
                 }
@@ -1237,7 +1253,7 @@ final class Connection
         if ($newInfo->lameDuckMode) {
             $this->log('warning', 'Server entered lame duck mode');
             $handler = $this->options->onLameDuckMode;
-            if ($handler !== null) {
+            if ($handler !== null && !$this->callbacksSuppressed()) {
                 $handler($this);
             }
         }
@@ -1267,7 +1283,7 @@ final class Connection
     private function handleDisconnect(): void
     {
         $handler = $this->onDisconnectHandler;
-        if ($handler !== null) {
+        if ($handler !== null && !$this->callbacksSuppressed()) {
             $handler($this);
         }
 
@@ -1321,7 +1337,7 @@ final class Connection
                     $this->log('info', 'Reconnected to {url}', ['url' => $url]);
 
                     $handler = $this->onReconnectHandler;
-                    if ($handler !== null) {
+                    if ($handler !== null && !$this->callbacksSuppressed()) {
                         $handler($this);
                     }
 
