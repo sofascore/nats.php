@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Sofascore\Nats\Tests\Integration;
 
 use Sofascore\Nats\Connection;
+use Sofascore\Nats\ConnectionOptions;
 use Sofascore\Nats\Headers;
 use Sofascore\Nats\Message;
 use Sofascore\Nats\TimeoutException;
@@ -15,10 +16,12 @@ final class RequestReplyTest extends TestCase
     use NatsUrlTrait;
 
     private Connection $conn;
+    private string $connectionName;
 
     protected function setUp(): void
     {
-        $this->conn = Connection::connect(self::natsUrl());
+        $this->connectionName = 'request-reply-test-' . uniqid();
+        $this->conn = Connection::connect(self::natsUrl(), new ConnectionOptions(name: $this->connectionName));
     }
 
     protected function tearDown(): void
@@ -78,6 +81,20 @@ final class RequestReplyTest extends TestCase
         self::assertTrue($threw, 'Expected exception for no responders');
     }
 
+    public function testRequestMessageNoResponders(): void
+    {
+        $threw = false;
+        try {
+            $this->conn->requestMessage(
+                new Message(subject: 'test.rr.nobody.msg.unique.' . uniqid(), data: 'hello'),
+                0.5,
+            );
+        } catch (\Throwable) {
+            $threw = true;
+        }
+        self::assertTrue($threw, 'Expected exception for no responders on requestMessage');
+    }
+
     public function testMultipleRequestReplies(): void
     {
         $this->conn->subscribe('test.rr.multi', function (Message $msg): void {
@@ -89,6 +106,50 @@ final class RequestReplyTest extends TestCase
             $reply = $this->conn->request('test.rr.multi', (string) $i, 2.0);
             self::assertSame((string) ($i * 2), $reply->data);
         }
+    }
+
+    public function testRequestTimeoutCleansUpSubscription(): void
+    {
+        // Subscribe a silent responder that never replies
+        $this->conn->subscribe('test.rr.silent.' . ($id = uniqid()), function (Message $msg): void {
+            // intentionally do not respond
+        });
+
+        $before = $this->conn->numSubscriptions();
+
+        try {
+            $this->conn->request('test.rr.silent.' . $id, 'x', 0.2);
+        } catch (\Throwable) {
+        }
+
+        self::assertSame($before, $this->conn->numSubscriptions());
+        self::assertSame(
+            ['test.rr.silent.' . $id],
+            $this->waitForServerSubscriptions($this->connectionName, 1),
+        );
+    }
+
+    public function testRequestMessageTimeoutCleansUpSubscription(): void
+    {
+        $this->conn->subscribe('test.rr.silent.msg.' . ($id = uniqid()), function (Message $msg): void {
+            // intentionally do not respond
+        });
+
+        $before = $this->conn->numSubscriptions();
+
+        try {
+            $this->conn->requestMessage(
+                new Message(subject: 'test.rr.silent.msg.' . $id, data: 'x'),
+                0.2,
+            );
+        } catch (\Throwable) {
+        }
+
+        self::assertSame($before, $this->conn->numSubscriptions());
+        self::assertSame(
+            ['test.rr.silent.msg.' . $id],
+            $this->waitForServerSubscriptions($this->connectionName, 1),
+        );
     }
 
     public function testRequestReplyWithQueueGroup(): void
@@ -107,5 +168,40 @@ final class RequestReplyTest extends TestCase
         $reply = $this->conn->request('test.rr.queue', 'test', 2.0);
         self::assertStringStartsWith('from-', $reply->data);
         self::assertCount(1, $handledBy); // Only one worker responds
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function waitForServerSubscriptions(string $connectionName, int $expectedCount): array
+    {
+        $deadline = microtime(true) + 1.0;
+
+        do {
+            $connz = @file_get_contents('http://127.0.0.1:8222/connz?subs=1');
+            self::assertNotFalse($connz, 'Expected NATS monitoring endpoint on port 8222');
+
+            /** @var array{
+             *     connections?: list<array{name?: string, subscriptions_list?: list<string>}>
+             * } $payload
+             */
+            $payload = json_decode($connz, true, flags: JSON_THROW_ON_ERROR);
+
+            foreach ($payload['connections'] ?? [] as $connection) {
+                if (($connection['name'] ?? null) !== $connectionName) {
+                    continue;
+                }
+
+                $subscriptions = $connection['subscriptions_list'] ?? [];
+                if (count($subscriptions) === $expectedCount) {
+                    sort($subscriptions);
+                    return $subscriptions;
+                }
+            }
+
+            usleep(10_000);
+        } while (microtime(true) < $deadline);
+
+        self::fail("Timed out waiting for {$connectionName} to have {$expectedCount} server subscriptions");
     }
 }
