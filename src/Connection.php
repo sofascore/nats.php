@@ -71,6 +71,15 @@ final class Connection
     private string $reconnectBuffer = '';
     private bool $shutdownInitiated = false;
 
+    /** Tracks whether the first successful connect has not yet happened (retryOnFailedConnect). */
+    private bool $initialConnectPending = false;
+
+    /** Number of failed reconnect attempt cycles (reset on success). */
+    private int $reconnectAttempts = 0;
+
+    /** @var \Closure(): TransportInterface Factory for creating new transport instances (for reconnect). */
+    private \Closure $transportFactory;
+
     private function __construct() {}
 
     /**
@@ -91,7 +100,8 @@ final class Connection
         $conn->onErrorHandler = $conn->options->onError;
         $conn->parser = new Parser();
         $conn->writer = new Writer();
-        $conn->transport = new TcpTransport();
+        $conn->transportFactory = static fn (): TransportInterface => new TcpTransport();
+        $conn->transport = ($conn->transportFactory)();
 
         // Build server pool
         if (is_string($url)) {
@@ -647,9 +657,11 @@ final class Connection
 
     public function wait(): void
     {
-        while ($this->status === ConnectionStatus::Connected) {
+        while ($this->status === ConnectionStatus::Connected || $this->status === ConnectionStatus::Reconnecting) {
             $this->processIncoming(0.1);
-            $this->checkPing();
+            if ($this->status === ConnectionStatus::Connected) {
+                $this->checkPing();
+            }
         }
     }
 
@@ -690,6 +702,15 @@ final class Connection
                 $lastError = $e;
                 continue;
             }
+        }
+
+        if ($this->options->retryOnFailedConnect) {
+            $this->log('info', 'Initial connect failed, will retry in background (retryOnFailedConnect=true)');
+            $this->status = ConnectionStatus::Reconnecting;
+            $this->transport->close();
+            $this->initialConnectPending = true;
+            $this->reconnectAttempts = 0;
+            return;
         }
 
         $this->status = ConnectionStatus::Disconnected;
@@ -937,8 +958,15 @@ final class Connection
 
         $this->subscriptions[$sid] = $sub;
 
-        $cmd = $this->writer->sub($subject, $sid, $queue);
-        $this->writeToServer($cmd);
+        // Only send the SUB protocol command when actually connected.
+        // During reconnect, subscriptions are tracked in $this->subscriptions
+        // and will be replayed by attemptReconnectCycle/doReconnect on success.
+        // Writing here would also buffer the SUB into reconnectBuffer, causing
+        // the server to receive each SUB twice (once from replay, once from buffer flush).
+        if ($this->status === ConnectionStatus::Connected) {
+            $cmd = $this->writer->sub($subject, $sid, $queue);
+            $this->writeToServer($cmd);
+        }
 
         $this->log('debug', 'Subscribed to {subject} (sid={sid})', ['subject' => $subject, 'sid' => $sid]);
 
@@ -1109,6 +1137,10 @@ final class Connection
         $this->flushWrite();
 
         if (!$this->transport->isConnected()) {
+            if ($this->status === ConnectionStatus::Reconnecting) {
+                $this->attemptReconnectCycle();
+                return;
+            }
             if ($this->status === ConnectionStatus::Connected) {
                 $this->handleDisconnect();
             }
@@ -1280,6 +1312,116 @@ final class Connection
 
     // --- Internal: reconnect ---
 
+    /**
+     * Attempts one reconnect cycle through the server pool.
+     *
+     * Called from processIncoming() when in Reconnecting state with no active transport.
+     * On success: transitions to Connected, re-subscribes, flushes buffer, fires callback.
+     * On failure: increments attempt counter, waits reconnectWait+jitter, returns.
+     * Next process()/wait() call will try again.
+     */
+    private function attemptReconnectCycle(): void
+    {
+        if ($this->status !== ConnectionStatus::Reconnecting) {
+            return;
+        }
+
+        $maxReconnects = $this->options->maxReconnects;
+        if ($maxReconnects >= 0 && $this->reconnectAttempts >= $maxReconnects) {
+            $this->log('error', 'Max reconnection attempts reached');
+            $this->close();
+            return;
+        }
+
+        // Try each server in the pool
+        for ($i = 0; $i < count($this->serverPool); $i++) {
+            $idx = ($this->currentServerIndex + 1 + $i) % count($this->serverPool);
+            $url = $this->serverPool[$idx];
+
+            try {
+                $this->transport = ($this->transportFactory)();
+                $this->connectToServer($url);
+                $this->currentServerIndex = $idx;
+                $this->status = ConnectionStatus::Connected;
+
+                if ($this->initialConnectPending) {
+                    $this->initialConnectPending = false;
+
+                    // Replay subscriptions queued while reconnecting
+                    foreach ($this->subscriptions as $sid => $sub) {
+                        $cmd = $this->writer->sub($sub->subject(), $sid, $sub->queue());
+                        $this->transport->write($cmd);
+                    }
+                    if ($this->subscriptions !== []) {
+                        $this->log('debug', 'Re-subscribed {count} subscriptions', [
+                            'count' => count($this->subscriptions),
+                        ]);
+                    }
+
+                    // Flush any buffered publishes
+                    if ($this->reconnectBuffer !== '') {
+                        $this->transport->write($this->reconnectBuffer);
+                        $this->reconnectBuffer = '';
+                    }
+
+                    $this->log('info', 'Connected to {url} (after retry)', ['url' => $url]);
+                    $handler = $this->options->onConnect;
+                    if ($handler !== null) {
+                        $handler($this);
+                    }
+                } else {
+                    $this->reconnects++;
+                    // Re-subscribe
+                    foreach ($this->subscriptions as $sid => $sub) {
+                        $cmd = $this->writer->sub($sub->subject(), $sid, $sub->queue());
+                        $this->transport->write($cmd);
+                    }
+                    if ($this->subscriptions !== []) {
+                        $this->log('debug', 'Re-subscribed {count} subscriptions', [
+                            'count' => count($this->subscriptions),
+                        ]);
+                    }
+                    // Flush reconnect buffer
+                    if ($this->reconnectBuffer !== '') {
+                        $this->transport->write($this->reconnectBuffer);
+                        $this->reconnectBuffer = '';
+                    }
+                    $this->log('info', 'Reconnected to {url}', ['url' => $url]);
+                    $handler = $this->onReconnectHandler;
+                    if ($handler !== null) {
+                        $handler($this);
+                    }
+                }
+
+                $this->flushWrite();
+                $this->reconnectAttempts = 0;
+                return;
+            } catch (\Throwable $e) {
+                $this->log('warning', 'Reconnect to {url} failed: {error}', [
+                    'url' => $url,
+                    'error' => $e->getMessage(),
+                ]);
+                continue;
+            }
+        }
+
+        $this->reconnectAttempts++;
+
+        // Wait before next attempt
+        $customDelay = $this->options->customReconnectDelay;
+        if ($customDelay !== null) {
+            $result = $customDelay($this->reconnectAttempts);
+            $actualWait = is_numeric($result) ? (float) $result : 1.0;
+        } else {
+            $wait = $this->options->reconnectWait;
+            $jitter = $this->options->tlsEnabled
+                ? $this->options->reconnectJitterTls
+                : $this->options->reconnectJitter;
+            $actualWait = $wait + (mt_rand() / getrandmax()) * $jitter;
+        }
+        usleep((int) ($actualWait * 1_000_000));
+    }
+
     private function handleDisconnect(): void
     {
         $handler = $this->onDisconnectHandler;
@@ -1298,7 +1440,20 @@ final class Connection
         $this->doReconnect();
     }
 
-    private function doReconnect(): void
+    /**
+     * Attempts to reconnect to a NATS server.
+     *
+     * When $isInitialConnect is true, this method is being called from doConnect()
+     * as part of the retryOnFailedConnect logic. In that case we skip incrementing
+     * the reconnects counter, skip re-subscribing (no subscriptions exist yet),
+     * skip flushing the reconnect buffer (nothing buffered), and fire the onConnect
+     * callback instead of onReconnect.
+     *
+     * Note: Unlike the Go client (nats.go) which returns immediately and reconnects
+     * asynchronously in a goroutine, PHP is single-threaded so this method blocks
+     * until a connection is established or max attempts are exhausted.
+     */
+    private function doReconnect(bool $isInitialConnect = false): void
     {
         $maxReconnects = $this->options->maxReconnects;
         $attempts = 0;
@@ -1309,34 +1464,44 @@ final class Connection
                 $url = $this->serverPool[$idx];
 
                 try {
-                    $this->transport = new TcpTransport();
+                    $this->transport = ($this->transportFactory)();
                     $this->connectToServer($url);
                     $this->currentServerIndex = $idx;
                     $this->status = ConnectionStatus::Connected;
-                    $this->reconnects++;
 
-                    // Re-subscribe
-                    foreach ($this->subscriptions as $sid => $sub) {
-                        $cmd = $this->writer->sub($sub->subject(), $sid, $sub->queue());
-                        $this->transport->write($cmd);
-                    }
-                    if ($this->subscriptions !== []) {
-                        $this->log('debug', 'Re-subscribed {count} subscriptions', [
-                            'count' => count($this->subscriptions),
-                        ]);
+                    if (!$isInitialConnect) {
+                        $this->reconnects++;
                     }
 
-                    // Flush reconnect buffer
-                    if ($this->reconnectBuffer !== '') {
+                    // Re-subscribe (skip on initial connect — no subscriptions exist yet)
+                    if (!$isInitialConnect) {
+                        foreach ($this->subscriptions as $sid => $sub) {
+                            $cmd = $this->writer->sub($sub->subject(), $sid, $sub->queue());
+                            $this->transport->write($cmd);
+                        }
+                        if ($this->subscriptions !== []) {
+                            $this->log('debug', 'Re-subscribed {count} subscriptions', [
+                                'count' => count($this->subscriptions),
+                            ]);
+                        }
+                    }
+
+                    // Flush reconnect buffer (skip on initial connect — nothing buffered)
+                    if (!$isInitialConnect && $this->reconnectBuffer !== '') {
                         $this->transport->write($this->reconnectBuffer);
                         $this->reconnectBuffer = '';
                     }
 
                     $this->flushWrite();
 
-                    $this->log('info', 'Reconnected to {url}', ['url' => $url]);
-
-                    $handler = $this->onReconnectHandler;
+                    // Fire the appropriate callback
+                    if ($isInitialConnect) {
+                        $this->log('info', 'Connected to {url} (after retry)', ['url' => $url]);
+                        $handler = $this->options->onConnect;
+                    } else {
+                        $this->log('info', 'Reconnected to {url}', ['url' => $url]);
+                        $handler = $this->onReconnectHandler;
+                    }
                     if ($handler !== null && !$this->callbacksSuppressed()) {
                         $handler($this);
                     }
