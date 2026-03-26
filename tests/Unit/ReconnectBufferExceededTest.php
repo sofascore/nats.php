@@ -11,6 +11,7 @@ use Sofascore\Nats\Enum\ConnectionStatus;
 use Sofascore\Nats\Protocol\Parser;
 use Sofascore\Nats\Protocol\Writer;
 use Sofascore\Nats\ReconnectBufferExceededException;
+use Sofascore\Nats\Subscription;
 use Sofascore\Nats\Transport\TransportInterface;
 
 final class ReconnectBufferExceededTest extends TestCase
@@ -94,5 +95,87 @@ final class ReconnectBufferExceededTest extends TestCase
 
         // Buffer must still contain only the original data
         self::assertSame('hello', $this->getReconnectBuffer($conn));
+    }
+
+    public function testUnsubscribeSidRemovesSubscriptionEvenWhenWriteThrows(): void
+    {
+        $conn = $this->createReconnectingConnection(1); // tiny buffer to force exception
+
+        $ref = new \ReflectionClass(Connection::class);
+
+        // Seed a subscription into the map
+        $subRef = new \ReflectionClass(Subscription::class);
+        $sub = $subRef->newInstanceWithoutConstructor();
+
+        $subscriptions = $ref->getProperty('subscriptions');
+        $subscriptions->setValue($conn, ['test-sid' => $sub]);
+
+        // unsubscribeSid should throw because the buffer is tiny
+        try {
+            $conn->unsubscribeSid('test-sid');
+        } catch (ReconnectBufferExceededException) {
+            // expected
+        }
+
+        // The subscription must still be removed from the local map
+        $remaining = $subscriptions->getValue($conn);
+        self::assertArrayNotHasKey('test-sid', $remaining);
+    }
+
+    public function testFlushDoesNotLeakPongCallbackWhenWriteThrows(): void
+    {
+        $conn = $this->createReconnectingConnection(1); // tiny buffer
+
+        $ref = new \ReflectionClass(Connection::class);
+        $pongCallbacks = $ref->getProperty('pongCallbacks');
+
+        self::assertEmpty($pongCallbacks->getValue($conn));
+
+        try {
+            $conn->flush();
+        } catch (ReconnectBufferExceededException) {
+            // expected
+        }
+
+        // No pong callback should have been registered
+        self::assertEmpty($pongCallbacks->getValue($conn));
+    }
+
+    public function testRttDoesNotLeakPongCallbackWhenWriteThrows(): void
+    {
+        $conn = $this->createReconnectingConnection(1); // tiny buffer
+
+        $ref = new \ReflectionClass(Connection::class);
+        $pongCallbacks = $ref->getProperty('pongCallbacks');
+
+        self::assertEmpty($pongCallbacks->getValue($conn));
+
+        try {
+            $conn->rtt();
+        } catch (ReconnectBufferExceededException) {
+            // expected
+        }
+
+        // No pong callback should have been registered
+        self::assertEmpty($pongCallbacks->getValue($conn));
+    }
+
+    public function testBarrierDoesNotLeakPongCallbackWhenWriteThrows(): void
+    {
+        $conn = $this->createReconnectingConnection(1); // tiny buffer
+
+        $ref = new \ReflectionClass(Connection::class);
+        $pongCallbacks = $ref->getProperty('pongCallbacks');
+
+        self::assertEmpty($pongCallbacks->getValue($conn));
+
+        try {
+            $conn->barrier(static function (): void {});
+        } catch (ReconnectBufferExceededException) {
+            // expected
+        }
+
+        // No pong callback should have been registered
+        self::assertEmpty($pongCallbacks->getValue($conn));
     }
 }

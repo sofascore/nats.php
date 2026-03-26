@@ -418,11 +418,14 @@ final class Connection
         // Send PING and wait for PONG
         $done = false;
         $id = 'p' . ++$this->pongCounter;
+
+        $this->writeToServer($this->writer->ping());
+
+        // Register callback after writeToServer so it won't linger if the write throws
         $this->pongCallbacks[$id] = static function () use (&$done): void {
             $done = true;
         };
 
-        $this->writeToServer($this->writer->ping());
         $this->flushWrite();
 
         $deadline = microtime(true) + $timeout;
@@ -582,12 +585,15 @@ final class Connection
 
         $done = false;
         $id = 'p' . ++$this->pongCounter;
+
+        $start = hrtime(true);
+        $this->writeToServer($this->writer->ping());
+
+        // Register callback after writeToServer so it won't linger if the write throws
         $this->pongCallbacks[$id] = static function () use (&$done): void {
             $done = true;
         };
 
-        $start = hrtime(true);
-        $this->writeToServer($this->writer->ping());
         $this->flushWrite();
 
         $deadline = microtime(true) + 5.0;
@@ -647,11 +653,14 @@ final class Connection
         $this->flushWrite();
 
         $id = 'p' . ++$this->pongCounter;
+
+        $this->writeToServer($this->writer->ping());
+
+        // Register callback after writeToServer so it won't linger if the write throws
         $this->pongCallbacks[$id] = static function () use ($fn): void {
             $fn();
         };
 
-        $this->writeToServer($this->writer->ping());
         $this->flushWrite();
     }
 
@@ -1049,12 +1058,14 @@ final class Connection
     public function unsubscribeSid(string $sid, ?int $maxMessages = null, bool $removeLocal = true): void
     {
         $this->log('debug', 'Unsubscribed sid={sid}', ['sid' => $sid]);
-        $cmd = $this->writer->unsub($sid, $maxMessages);
-        $this->writeToServer($cmd);
 
+        // Remove locally first so state is consistent even if writeToServer throws.
         if ($removeLocal && ($maxMessages === null || $maxMessages === 0)) {
             unset($this->subscriptions[$sid]);
         }
+
+        $cmd = $this->writer->unsub($sid, $maxMessages);
+        $this->writeToServer($cmd);
     }
 
     /** @internal */
