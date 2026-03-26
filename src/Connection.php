@@ -1182,9 +1182,12 @@ final class Connection
     {
         if ($this->status === ConnectionStatus::Reconnecting) {
             $maxSize = $this->options->reconnectBufferSize;
-            if (strlen($this->reconnectBuffer) + strlen($data) <= $maxSize) {
-                $this->reconnectBuffer .= $data;
+            if (strlen($this->reconnectBuffer) + strlen($data) > $maxSize) {
+                throw new ReconnectBufferExceededException(
+                    'Reconnect buffer exceeded (' . $maxSize . ' bytes)'
+                );
             }
+            $this->reconnectBuffer .= $data;
             return;
         }
 
