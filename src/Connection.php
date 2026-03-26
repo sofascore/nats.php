@@ -695,6 +695,8 @@ final class Connection
         if ($this->options->retryOnFailedConnect) {
             $this->log('info', 'Initial connect failed, retrying with reconnect logic (retryOnFailedConnect=true)');
             $this->status = ConnectionStatus::Reconnecting;
+            $this->transport->close();
+            $this->currentServerIndex = count($this->serverPool) - 1;
             $this->doReconnect();
             return;
         }
