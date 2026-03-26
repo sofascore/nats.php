@@ -958,8 +958,15 @@ final class Connection
 
         $this->subscriptions[$sid] = $sub;
 
-        $cmd = $this->writer->sub($subject, $sid, $queue);
-        $this->writeToServer($cmd);
+        // Only send the SUB protocol command when actually connected.
+        // During reconnect, subscriptions are tracked in $this->subscriptions
+        // and will be replayed by attemptReconnectCycle/doReconnect on success.
+        // Writing here would also buffer the SUB into reconnectBuffer, causing
+        // the server to receive each SUB twice (once from replay, once from buffer flush).
+        if ($this->status === ConnectionStatus::Connected) {
+            $cmd = $this->writer->sub($subject, $sid, $queue);
+            $this->writeToServer($cmd);
+        }
 
         $this->log('debug', 'Subscribed to {subject} (sid={sid})', ['subject' => $subject, 'sid' => $sid]);
 
