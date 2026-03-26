@@ -718,7 +718,7 @@ final class Connection
         }
 
         // Build CONNECT payload
-        $connectPayload = $this->buildConnectPayload();
+        $connectPayload = $this->buildConnectPayload($url);
         $this->transport->write($this->writer->connect($connectPayload));
         $this->transport->write($this->writer->ping());
 
@@ -799,7 +799,7 @@ final class Connection
     /**
      * @return array<string, mixed>
      */
-    private function buildConnectPayload(): array
+    private function buildConnectPayload(string $candidateUrl): array
     {
         $payload = [
             'verbose' => $this->options->verbose,
@@ -833,13 +833,13 @@ final class Connection
             }
         }
 
-        // URL-embedded credentials
-        $url = $this->serverPool[$this->currentServerIndex] ?? '';
-        $parsed = parse_url($url);
-        if ($parsed !== false && isset($parsed['user']) && $auth === null) {
-            $payload['user'] = $parsed['user'];
-            if (isset($parsed['pass'])) {
-                $payload['pass'] = $parsed['pass'];
+        // URL-embedded credentials (use the candidate URL being connected,
+        // not currentServerIndex which may point to a different server)
+        $parsedCandidate = parse_url($candidateUrl);
+        if ($parsedCandidate !== false && isset($parsedCandidate['user']) && $auth === null) {
+            $payload['user'] = $parsedCandidate['user'];
+            if (isset($parsedCandidate['pass'])) {
+                $payload['pass'] = $parsedCandidate['pass'];
             }
         }
 
