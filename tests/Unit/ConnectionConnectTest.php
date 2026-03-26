@@ -202,6 +202,70 @@ final class ConnectionConnectTest extends TestCase
 
         self::assertSame([3.0], $transport->connectTimeouts);
     }
+
+    public function testDoConnectThrowsImmediatelyWhenRetryOnFailedConnectIsFalse(): void
+    {
+        $transport = new MockTransport(failAddresses: ['tcp://127.0.0.1:4222']);
+        $options = new ConnectionOptions(retryOnFailedConnect: false);
+        $conn = $this->createConnectionWithTransport($transport, $options);
+
+        $ref = new \ReflectionClass(Connection::class);
+        $ref->getProperty('serverPool')->setValue($conn, ['nats://127.0.0.1:4222']);
+
+        $this->expectException(NatsException::class);
+        $this->expectExceptionMessage('Failed to connect to any NATS server');
+
+        $ref->getMethod('doConnect')->invoke($conn);
+    }
+
+    public function testDoConnectCallsDoReconnectWhenRetryOnFailedConnectIsTrue(): void
+    {
+        $transport = new MockTransport(failAddresses: ['tcp://127.0.0.1:4222']);
+        $options = new ConnectionOptions(
+            retryOnFailedConnect: true,
+            maxReconnects: 0,
+            reconnectWait: 0.0,
+        );
+        $conn = $this->createConnectionWithTransport($transport, $options);
+
+        $ref = new \ReflectionClass(Connection::class);
+        $ref->getProperty('serverPool')->setValue($conn, ['nats://127.0.0.1:4222']);
+        $ref->getProperty('subscriptions')->setValue($conn, []);
+        $ref->getProperty('reconnectBuffer')->setValue($conn, '');
+
+        // With maxReconnects=0, doReconnect() throws "Max reconnection attempts reached"
+        // instead of "Failed to connect to any NATS server", proving doReconnect was called
+        $this->expectException(NatsException::class);
+        $this->expectExceptionMessage('Max reconnection attempts reached');
+
+        $ref->getMethod('doConnect')->invoke($conn);
+    }
+
+    public function testDoConnectWithRetryOnFailedConnectRetriesViaDoReconnect(): void
+    {
+        $transport = new MockTransport(failAddresses: ['tcp://127.0.0.1:4222']);
+        $options = new ConnectionOptions(
+            retryOnFailedConnect: true,
+            maxReconnects: 0,
+            reconnectWait: 0.0,
+        );
+        $conn = $this->createConnectionWithTransport($transport, $options);
+
+        $ref = new \ReflectionClass(Connection::class);
+        $ref->getProperty('serverPool')->setValue($conn, ['nats://127.0.0.1:4222']);
+        $ref->getProperty('subscriptions')->setValue($conn, []);
+        $ref->getProperty('reconnectBuffer')->setValue($conn, '');
+
+        $thrown = false;
+        try {
+            $ref->getMethod('doConnect')->invoke($conn);
+        } catch (NatsException $e) {
+            $thrown = true;
+            // Verify it went through doReconnect path, not the immediate failure path
+            self::assertSame('Max reconnection attempts reached', $e->getMessage());
+        }
+        self::assertTrue($thrown, 'Expected NatsException to be thrown');
+    }
 }
 
 /**

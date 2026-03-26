@@ -692,6 +692,13 @@ final class Connection
             }
         }
 
+        if ($this->options->retryOnFailedConnect) {
+            $this->log('info', 'Initial connect failed, retrying with reconnect logic (retryOnFailedConnect=true)');
+            $this->status = ConnectionStatus::Reconnecting;
+            $this->doReconnect();
+            return;
+        }
+
         $this->status = ConnectionStatus::Disconnected;
         $errorMsg = $lastError?->getMessage() ?? 'unknown error';
         $this->log('error', 'Failed to connect to any NATS server: {error}', ['error' => $errorMsg]);
