@@ -1339,6 +1339,24 @@ final class Connection
 
                 if ($this->initialConnectPending) {
                     $this->initialConnectPending = false;
+
+                    // Replay subscriptions queued while reconnecting
+                    foreach ($this->subscriptions as $sid => $sub) {
+                        $cmd = $this->writer->sub($sub->subject(), $sid, $sub->queue());
+                        $this->transport->write($cmd);
+                    }
+                    if ($this->subscriptions !== []) {
+                        $this->log('debug', 'Re-subscribed {count} subscriptions', [
+                            'count' => count($this->subscriptions),
+                        ]);
+                    }
+
+                    // Flush any buffered publishes
+                    if ($this->reconnectBuffer !== '') {
+                        $this->transport->write($this->reconnectBuffer);
+                        $this->reconnectBuffer = '';
+                    }
+
                     $this->log('info', 'Connected to {url} (after retry)', ['url' => $url]);
                     $handler = $this->options->onConnect;
                     if ($handler !== null) {
