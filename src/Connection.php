@@ -1425,7 +1425,9 @@ final class Connection
         if ($this->status === ConnectionStatus::Closed) {
             throw new ConnectionClosedException();
         }
-        if ($this->status !== ConnectionStatus::Connected && $this->status !== ConnectionStatus::Reconnecting) {
+        if ($this->status !== ConnectionStatus::Connected
+            && $this->status !== ConnectionStatus::Reconnecting
+            && $this->status !== ConnectionStatus::DrainingSubscriptions) {
             throw new NatsException('Not connected');
         }
     }
