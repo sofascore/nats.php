@@ -855,9 +855,7 @@ final class Connection
     private function doSubscribe(string $subject, ?string $queue, ?\Closure $handler): Subscription
     {
         $this->ensureConnected();
-        if (!$this->options->skipSubjectValidation) {
-            self::validateSubject($subject);
-        }
+        self::validateSubject($subject);
 
         $sid = 's' . ++$this->ssid;
         $sub = new Subscription(
