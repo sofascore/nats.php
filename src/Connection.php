@@ -264,18 +264,17 @@ final class Connection
         $this->subscriptions = [];
 
         $handler = $this->onCloseHandler;
-        if ($handler !== null) {
+        if ($handler !== null && !$this->callbacksSuppressed()) {
             $handler($this);
         }
     }
 
     /**
-     * Returns true when callbacks (except onClose) should be suppressed.
+     * Returns true when callbacks should be suppressed.
      *
      * When the noCallbacksAfterClientClose option is enabled and the
-     * connection has been closed or drained, all callbacks except onClose
-     * are skipped. This mirrors the Go client's NoCallbacksAfterClientClose
-     * behaviour.
+     * connection has been closed or drained, all callbacks are skipped.
+     * This mirrors the Go client's NoCallbacksAfterClientClose behaviour.
      */
     private function callbacksSuppressed(): bool
     {
