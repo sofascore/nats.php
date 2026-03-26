@@ -136,7 +136,7 @@ final class Connection
      */
     public function publish(string $subject, string $data = '', ?string $replyTo = null): void
     {
-        $this->ensureConnected();
+        $this->ensureCanPublish();
         if (!$this->options->skipSubjectValidation) {
             self::validateSubject($subject);
         }
@@ -154,7 +154,7 @@ final class Connection
      */
     public function publishMessage(Message $msg): void
     {
-        $this->ensureConnected();
+        $this->ensureCanPublish();
         if (!$this->options->skipSubjectValidation) {
             self::validateSubject($msg->subject);
         }
@@ -353,15 +353,56 @@ final class Connection
     {
         $this->shutdownInitiated = true;
         $this->log('info', 'Draining connection');
+        $deadline = microtime(true) + $this->options->drainTimeout;
+
         $this->status = ConnectionStatus::DrainingSubscriptions;
 
-        // Unsubscribe all
+        // Tell all subscriptions to start draining (send UNSUB)
         foreach ($this->subscriptions as $sub) {
             $sub->drain();
         }
 
+        // Flush (PING/PONG round-trip) to ensure the server has processed all UNSUBs.
+        // After the PONG returns, the server won't send new messages for these SIDs,
+        // so we only need to deliver whatever is already buffered locally.
+        // Note: drainFlush() calls processIncoming() internally, so some drain
+        // deliveries may happen during this flush.
+        $remaining = $deadline - microtime(true);
+        if ($remaining > 0) {
+            try {
+                $this->drainFlush($remaining);
+            } catch (TimeoutException) {
+                $this->log('warning', 'Drain flush timed out before PONG received');
+            } catch (\Throwable $e) {
+                $this->log('warning', 'Drain flush failed: ' . $e->getMessage());
+            }
+        }
+
+        // Process any remaining in-flight messages already buffered locally
+        while (!$this->allSubscriptionsDrained() && microtime(true) < $deadline) {
+            $this->processIncoming(min(0.1, $deadline - microtime(true)));
+
+            // After processing, check if any async draining subs can be marked complete
+            foreach ($this->subscriptions as $sub) {
+                $sub->checkDrainComplete();
+            }
+        }
+
+        if (!$this->allSubscriptionsDrained()) {
+            $this->log('warning', 'Drain timeout exceeded');
+        }
+
         $this->status = ConnectionStatus::DrainingPublications;
-        $this->flush();
+        $remaining = $deadline - microtime(true);
+
+        if ($remaining > 0) {
+            try {
+                $this->drainFlush($remaining);
+            } catch (TimeoutException) {
+                $this->log('warning', 'Drain timeout exceeded during flush');
+            }
+        }
+
         $this->close();
     }
 
@@ -388,6 +429,37 @@ final class Connection
         while (!$done && microtime(true) < $deadline) {
             $remaining = $deadline - microtime(true);
             $this->processIncoming(max(0.001, $remaining));
+        }
+
+        unset($this->pongCallbacks[$id]);
+
+        if (!$done) {
+            throw new TimeoutException('Flush timed out');
+        }
+    }
+
+    /**
+     * PING/PONG flush usable during drain (bypasses ensureConnected which
+     * rejects draining status).
+     *
+     * @throws TimeoutException If flush does not complete within timeout
+     */
+    private function drainFlush(float $timeout): void
+    {
+        $this->flushWrite();
+
+        $done = false;
+        $id = 'p' . ++$this->pongCounter;
+        $this->pongCallbacks[$id] = static function () use (&$done): void {
+            $done = true;
+        };
+
+        $this->writeToServer($this->writer->ping());
+        $this->flushWrite();
+
+        $deadline = microtime(true) + $timeout;
+        while (!$done && microtime(true) < $deadline) {
+            $this->processIncoming(max(0.001, $deadline - microtime(true)));
         }
 
         unset($this->pongCallbacks[$id]);
@@ -974,13 +1046,13 @@ final class Connection
     }
 
     /** @internal */
-    public function unsubscribeSid(string $sid, ?int $maxMessages = null): void
+    public function unsubscribeSid(string $sid, ?int $maxMessages = null, bool $removeLocal = true): void
     {
         $this->log('debug', 'Unsubscribed sid={sid}', ['sid' => $sid]);
         $cmd = $this->writer->unsub($sid, $maxMessages);
         $this->writeToServer($cmd);
 
-        if ($maxMessages === null || $maxMessages === 0) {
+        if ($removeLocal && ($maxMessages === null || $maxMessages === 0)) {
             unset($this->subscriptions[$sid]);
         }
     }
@@ -1117,6 +1189,17 @@ final class Connection
         }
 
         $this->writeBuffer .= $data;
+    }
+
+    private function allSubscriptionsDrained(): bool
+    {
+        foreach ($this->subscriptions as $sub) {
+            if (!$sub->isDrained()) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private function flushWrite(): void
@@ -1559,7 +1642,20 @@ final class Connection
         if ($this->status === ConnectionStatus::Closed) {
             throw new ConnectionClosedException();
         }
-        if ($this->status !== ConnectionStatus::Connected && $this->status !== ConnectionStatus::Reconnecting) {
+        if ($this->status !== ConnectionStatus::Connected
+            && $this->status !== ConnectionStatus::Reconnecting) {
+            throw new NatsException('Not connected');
+        }
+    }
+
+    private function ensureCanPublish(): void
+    {
+        if ($this->status === ConnectionStatus::Closed) {
+            throw new ConnectionClosedException();
+        }
+        if ($this->status !== ConnectionStatus::Connected
+            && $this->status !== ConnectionStatus::Reconnecting
+            && $this->status !== ConnectionStatus::DrainingSubscriptions) {
             throw new NatsException('Not connected');
         }
     }

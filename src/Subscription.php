@@ -13,6 +13,8 @@ final class Subscription
     private int $maxMessages = 0;
     private bool $closed = false;
     private bool $draining = false;
+    private bool $drained = false;
+    private bool $receivedSinceDrainCheck = false;
     private int $pendingMsgLimit = 500_000;       // Go default: DefaultSubPendingMsgsLimit
     private int $pendingBytesLimit = 67_108_864; // 64MB — Go default: DefaultSubPendingBytesLimit
     private int $pendingBytes = 0;
@@ -81,12 +83,27 @@ final class Subscription
 
     public function drain(): void
     {
-        $this->draining = true;
-        $this->connection->unsubscribeSid($this->sid);
-
-        if ($this->closedHandler !== null) {
-            ($this->closedHandler)();
+        if ($this->closed || $this->draining) {
+            return;
         }
+
+        $this->draining = true;
+        $this->connection->unsubscribeSid($this->sid, removeLocal: false);
+
+        // Don't fire closedHandler here — it will be called when all
+        // pending messages have been delivered (see deliver() and isDrained()).
+        // For sync subs: if buffer is already empty, complete immediately.
+        // For async subs: don't mark drained yet — messages are delivered inline
+        // via the handler and the buffer is always empty. The Connection drain loop
+        // will call checkDrainComplete() after each processIncoming() cycle.
+        if ($this->handler === null && $this->messageBuffer === []) {
+            $this->markDrained();
+        }
+    }
+
+    public function isDrained(): bool
+    {
+        return $this->drained;
     }
 
     public function isValid(): bool
@@ -201,6 +218,26 @@ final class Subscription
         $this->closedHandler = $handler;
     }
 
+    /**
+     * @internal Called by Connection after each processIncoming() cycle
+     * to check whether an async draining subscription can be marked as drained.
+     */
+    public function checkDrainComplete(): void
+    {
+        if (!$this->draining || $this->drained || $this->handler === null) {
+            return;
+        }
+
+        if ($this->receivedSinceDrainCheck) {
+            // Messages were delivered since the last check — reset and wait for the next cycle.
+            $this->receivedSinceDrainCheck = false;
+            return;
+        }
+
+        // No messages arrived in this cycle — the server has stopped sending for this SID.
+        $this->markDrained();
+    }
+
     /** @internal Called by Connection when a message arrives */
     public function deliver(Message $msg): void
     {
@@ -214,7 +251,11 @@ final class Subscription
 
         // Async handler
         if ($this->handler !== null) {
+            if ($this->draining) {
+                $this->receivedSinceDrainCheck = true;
+            }
             ($this->handler)($msg);
+
             return;
         }
 
@@ -248,6 +289,24 @@ final class Subscription
             throw new NatsException('No message in buffer');
         }
         $this->pendingBytes -= strlen($msg->data);
+
+        // For sync subscriptions: if draining and buffer is now empty, mark drained
+        if ($this->draining && $this->messageBuffer === []) {
+            $this->markDrained();
+        }
+
         return $msg;
+    }
+
+    private function markDrained(): void
+    {
+        $this->closed = true;
+        $this->drained = true;
+        $this->draining = false;
+        $this->connection->removeSubscription($this->sid);
+
+        if ($this->closedHandler !== null) {
+            ($this->closedHandler)();
+        }
     }
 }
