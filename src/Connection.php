@@ -119,7 +119,9 @@ final class Connection
     public function publish(string $subject, string $data = '', ?string $replyTo = null): void
     {
         $this->ensureConnected();
-        self::validateSubject($subject);
+        if (!$this->options->skipSubjectValidation) {
+            self::validateSubject($subject);
+        }
         $this->checkMaxPayload(strlen($data));
 
         $cmd = $this->writer->pub($subject, $data, $replyTo);
@@ -135,7 +137,9 @@ final class Connection
     public function publishMessage(Message $msg): void
     {
         $this->ensureConnected();
-        self::validateSubject($msg->subject);
+        if (!$this->options->skipSubjectValidation) {
+            self::validateSubject($msg->subject);
+        }
 
         if ($msg->headers !== null && $msg->headers->count() > 0) {
             if (!$this->headersSupported()) {
