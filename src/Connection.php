@@ -355,6 +355,11 @@ final class Connection
         // Process incoming messages until all subs are fully drained or timeout
         while (!$this->allSubscriptionsDrained() && microtime(true) < $deadline) {
             $this->processIncoming(min(0.1, $deadline - microtime(true)));
+
+            // After processing, check if any async draining subs can be marked complete
+            foreach ($this->subscriptions as $sub) {
+                $sub->checkDrainComplete();
+            }
         }
 
         if (!$this->allSubscriptionsDrained()) {
