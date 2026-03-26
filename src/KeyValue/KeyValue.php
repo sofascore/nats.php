@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Sofascore\Nats\KeyValue;
 
+use Sofascore\Nats\Enum\DeliveryPolicy;
 use Sofascore\Nats\Enum\KeyValueOperation;
 use Sofascore\Nats\Headers;
 use Sofascore\Nats\JetStream\Consumer\FetchOptions;
@@ -255,79 +256,25 @@ final class KeyValue implements KeyValueInterface
 
     public function listKeys(): \Generator
     {
-        $stream = $this->js->stream("KV_{$this->bucketName}");
-        $consumer = $stream->orderedConsumer();
-        $batch = $consumer->fetch(1000);
-
-        $seenKeys = [];
-        foreach ($batch->messages() as $msg) {
-            $subject = $msg->subject();
-            $key = substr($subject, strlen("\$KV.{$this->bucketName}."));
-
-            // Only yield Put operations, skip deletes
-            $operation = KeyValueOperation::Put;
-            $headers = $msg->headers();
-            if ($headers !== null) {
-                $kvOp = $headers->get('KV-Operation');
-                if ($kvOp !== null) {
-                    $operation = KeyValueOperation::from($kvOp);
-                }
-            }
-
-            if ($operation === KeyValueOperation::Put && !isset($seenKeys[$key])) {
-                $seenKeys[$key] = true;
-                yield $key;
-            }
-        }
+        $prefix = "\$KV.{$this->bucketName}.";
+        yield from $this->listLatestKeys(filterSubject: $prefix . '>');
     }
 
     public function listKeysFiltered(string ...$filters): \Generator
     {
-        $stream = $this->js->stream("KV_{$this->bucketName}");
-        $streamInfo = $stream->info();
+        if ($filters === []) {
+            yield from $this->listKeys();
+            return;
+        }
+
         $prefix = "\$KV.{$this->bucketName}.";
 
-        // Build full subject patterns for matching
-        $patterns = array_map(
+        $filterSubjects = array_values(array_map(
             fn(string $f) => $prefix . $f,
             $filters,
-        );
+        ));
 
-        $seenKeys = [];
-        for ($seq = $streamInfo->state->firstSeq; $seq <= $streamInfo->state->lastSeq; $seq++) {
-            try {
-                $rawMsg = $stream->getMessage($seq);
-            } catch (\Throwable) {
-                continue;
-            }
-
-            // Check if subject matches any of the filter patterns
-            $matches = false;
-            foreach ($patterns as $pattern) {
-                if ($this->subjectMatchesFilter($rawMsg->subject, $pattern)) {
-                    $matches = true;
-                    break;
-                }
-            }
-            if (!$matches) {
-                continue;
-            }
-
-            $key = substr($rawMsg->subject, strlen($prefix));
-
-            $operation = KeyValueOperation::Put;
-            if ($rawMsg->headers !== null) {
-                $kvOp = $rawMsg->headers->get('KV-Operation');
-                if ($kvOp !== null) {
-                    $operation = KeyValueOperation::from($kvOp);
-                }
-            }
-
-            if ($operation === KeyValueOperation::Put && !isset($seenKeys[$key])) {
-                $seenKeys[$key] = true;
-                yield $key;
-            }
-        }
+        yield from $this->listLatestKeys(filterSubjects: $filterSubjects);
     }
 
     public function watch(string $keys = '>', WatchOptions ...$opts): KeyWatcher
@@ -440,14 +387,7 @@ final class KeyValue implements KeyValueInterface
         $subject = $msg->subject();
         $key = substr($subject, strlen("\$KV.{$this->bucketName}."));
 
-        $operation = KeyValueOperation::Put;
-        $headers = $msg->headers();
-        if ($headers !== null) {
-            $kvOp = $headers->get('KV-Operation');
-            if ($kvOp !== null) {
-                $operation = KeyValueOperation::from($kvOp);
-            }
-        }
+        $operation = $this->keyOperationFromHeaders($msg->headers());
 
         $meta = $msg->metadata();
 
@@ -470,31 +410,54 @@ final class KeyValue implements KeyValueInterface
     }
 
     /**
-     * Match a NATS subject against a filter pattern supporting `*` and `>` wildcards.
+     * @param list<string> $filterSubjects
+     * @return \Generator<string>
      */
-    private function subjectMatchesFilter(string $subject, string $filter): bool
+    private function listLatestKeys(?string $filterSubject = null, array $filterSubjects = []): \Generator
     {
-        if ($subject === $filter) {
-            return true;
-        }
+        $stream = $this->js->stream("KV_{$this->bucketName}");
+        $prefix = "\$KV.{$this->bucketName}.";
+        $batchSize = 1000;
 
-        $subjectTokens = explode('.', $subject);
-        $filterTokens = explode('.', $filter);
+        $consumer = $stream->orderedConsumer(new OrderedConsumerConfig(
+            deliverPolicy: DeliveryPolicy::LastPerSubject,
+            filterSubject: $filterSubject,
+            filterSubjects: $filterSubjects,
+            headersOnly: true,
+        ));
 
-        $si = 0;
-        $fi = 0;
-        while ($si < count($subjectTokens) && $fi < count($filterTokens)) {
-            $ft = $filterTokens[$fi];
-            if ($ft === '>') {
-                return true; // matches rest
+        while (true) {
+            $batch = $consumer->fetch($batchSize, new FetchOptions(timeout: 0.25));
+            $count = 0;
+
+            foreach ($batch->messages() as $msg) {
+                $count++;
+
+                if ($this->keyOperationFromHeaders($msg->headers()) !== KeyValueOperation::Put) {
+                    continue;
+                }
+
+                yield substr($msg->subject(), strlen($prefix));
             }
-            if ($ft !== '*' && $ft !== $subjectTokens[$si]) {
-                return false;
-            }
-            $si++;
-            $fi++;
-        }
 
-        return $si === count($subjectTokens) && $fi === count($filterTokens);
+            if ($count < $batchSize) {
+                break;
+            }
+        }
     }
+
+    private function keyOperationFromHeaders(?Headers $headers): KeyValueOperation
+    {
+        if ($headers === null) {
+            return KeyValueOperation::Put;
+        }
+
+        $kvOp = $headers->get('KV-Operation');
+        if ($kvOp === null) {
+            return KeyValueOperation::Put;
+        }
+
+        return KeyValueOperation::from($kvOp);
+    }
+
 }
