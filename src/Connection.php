@@ -62,7 +62,7 @@ final class Connection
 
     // Reconnect buffer
     private string $reconnectBuffer = '';
-    private bool $closedByUser = false;
+    private bool $shutdownInitiated = false;
 
     private function __construct() {}
 
@@ -255,7 +255,7 @@ final class Connection
             return;
         }
 
-        $this->closedByUser = true;
+        $this->shutdownInitiated = true;
         $this->status = ConnectionStatus::Closed;
         $this->log('info', 'Connection closed');
         $this->flushWrite();
@@ -273,17 +273,19 @@ final class Connection
      * Returns true when callbacks (except onClose) should be suppressed.
      *
      * When the noCallbacksAfterClientClose option is enabled and the
-     * connection has been closed, all callbacks except onClose are skipped.
-     * This mirrors the Go client's NoCallbacksAfterClientClose behaviour.
+     * connection has been closed or drained, all callbacks except onClose
+     * are skipped. This mirrors the Go client's NoCallbacksAfterClientClose
+     * behaviour.
      */
     private function callbacksSuppressed(): bool
     {
         return $this->options->noCallbacksAfterClientClose
-            && $this->closedByUser;
+            && $this->shutdownInitiated;
     }
 
     public function drain(): void
     {
+        $this->shutdownInitiated = true;
         $this->log('info', 'Draining connection');
         $this->status = ConnectionStatus::DrainingSubscriptions;
 
