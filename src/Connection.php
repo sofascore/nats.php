@@ -352,7 +352,23 @@ final class Connection
             $sub->drain();
         }
 
-        // Process incoming messages until all subs are fully drained or timeout
+        // Flush (PING/PONG round-trip) to ensure the server has processed all UNSUBs.
+        // After the PONG returns, the server won't send new messages for these SIDs,
+        // so we only need to deliver whatever is already buffered locally.
+        // Note: drainFlush() calls processIncoming() internally, so some drain
+        // deliveries may happen during this flush.
+        $remaining = $deadline - microtime(true);
+        if ($remaining > 0) {
+            try {
+                $this->drainFlush($remaining);
+            } catch (TimeoutException) {
+                $this->log('warning', 'Drain flush timed out before PONG received');
+            } catch (\Throwable $e) {
+                $this->log('warning', 'Drain flush failed: ' . $e->getMessage());
+            }
+        }
+
+        // Process any remaining in-flight messages already buffered locally
         while (!$this->allSubscriptionsDrained() && microtime(true) < $deadline) {
             $this->processIncoming(min(0.1, $deadline - microtime(true)));
 
@@ -371,7 +387,7 @@ final class Connection
 
         if ($remaining > 0) {
             try {
-                $this->flush($remaining);
+                $this->drainFlush($remaining);
             } catch (TimeoutException) {
                 $this->log('warning', 'Drain timeout exceeded during flush');
             }
@@ -403,6 +419,37 @@ final class Connection
         while (!$done && microtime(true) < $deadline) {
             $remaining = $deadline - microtime(true);
             $this->processIncoming(max(0.001, $remaining));
+        }
+
+        unset($this->pongCallbacks[$id]);
+
+        if (!$done) {
+            throw new TimeoutException('Flush timed out');
+        }
+    }
+
+    /**
+     * PING/PONG flush usable during drain (bypasses ensureConnected which
+     * rejects draining status).
+     *
+     * @throws TimeoutException If flush does not complete within timeout
+     */
+    private function drainFlush(float $timeout): void
+    {
+        $this->flushWrite();
+
+        $done = false;
+        $id = 'p' . ++$this->pongCounter;
+        $this->pongCallbacks[$id] = static function () use (&$done): void {
+            $done = true;
+        };
+
+        $this->writeToServer($this->writer->ping());
+        $this->flushWrite();
+
+        $deadline = microtime(true) + $timeout;
+        while (!$done && microtime(true) < $deadline) {
+            $this->processIncoming(max(0.001, $deadline - microtime(true)));
         }
 
         unset($this->pongCallbacks[$id]);
