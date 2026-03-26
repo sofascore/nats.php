@@ -126,7 +126,7 @@ final class Connection
      */
     public function publish(string $subject, string $data = '', ?string $replyTo = null): void
     {
-        $this->ensureConnected();
+        $this->ensureCanPublish();
         if (!$this->options->skipSubjectValidation) {
             self::validateSubject($subject);
         }
@@ -144,7 +144,7 @@ final class Connection
      */
     public function publishMessage(Message $msg): void
     {
-        $this->ensureConnected();
+        $this->ensureCanPublish();
         if (!$this->options->skipSubjectValidation) {
             self::validateSubject($msg->subject);
         }
@@ -1421,6 +1421,17 @@ final class Connection
     }
 
     private function ensureConnected(): void
+    {
+        if ($this->status === ConnectionStatus::Closed) {
+            throw new ConnectionClosedException();
+        }
+        if ($this->status !== ConnectionStatus::Connected
+            && $this->status !== ConnectionStatus::Reconnecting) {
+            throw new NatsException('Not connected');
+        }
+    }
+
+    private function ensureCanPublish(): void
     {
         if ($this->status === ConnectionStatus::Closed) {
             throw new ConnectionClosedException();
