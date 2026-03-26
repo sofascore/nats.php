@@ -614,8 +614,12 @@ final class JetStreamContext
 
                 return $response;
             } catch (JetStreamException $e) {
-                // API error response from server - don't retry, the server explicitly rejected the request
-                throw $e;
+                $lastException = $e;
+
+                // Retry transient server errors (5xx) on read-only operations
+                if (!$shouldRetry || $e->getCode() < 500) {
+                    throw $e;
+                }
             } catch (\Throwable $e) {
                 $lastException = $e;
 
