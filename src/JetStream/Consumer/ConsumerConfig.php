@@ -41,7 +41,6 @@ readonly class ConsumerConfig
         public bool $flowControl = false,
         public ?float $idleHeartbeat = null,
         public int $maxBatch = 0,
-        public int $maxBytes = 0,
         public bool $memoryStorage = false,
         public ?string $sampleFrequency = null,
         public ?float $maxRequestExpires = null,
@@ -87,7 +86,6 @@ readonly class ConsumerConfig
         if ($this->flowControl) { $data['flow_control'] = true; }
         if ($this->idleHeartbeat !== null) { $data['idle_heartbeat'] = (int) ($this->idleHeartbeat * 1_000_000_000); }
         if ($this->maxBatch > 0) { $data['max_batch'] = $this->maxBatch; }
-        if ($this->maxBytes > 0) { $data['max_bytes'] = $this->maxBytes; }
         if ($this->memoryStorage) { $data['mem_storage'] = true; }
         if ($this->sampleFrequency !== null) { $data['sample_freq'] = $this->sampleFrequency; }
         if ($this->maxRequestExpires !== null) { $data['max_expires'] = (int) ($this->maxRequestExpires * 1_000_000_000); }
@@ -131,7 +129,6 @@ readonly class ConsumerConfig
             flowControl: T::bool($data['flow_control'] ?? false),
             idleHeartbeat: isset($data['idle_heartbeat']) ? T::int($data['idle_heartbeat']) / 1_000_000_000 : null,
             maxBatch: T::int($data['max_batch'] ?? 0),
-            maxBytes: T::int($data['max_bytes'] ?? 0),
             memoryStorage: T::bool($data['mem_storage'] ?? false),
             sampleFrequency: T::nullableString($data['sample_freq'] ?? null),
             maxRequestExpires: isset($data['max_expires']) ? T::int($data['max_expires']) / 1_000_000_000 : null,
