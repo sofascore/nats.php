@@ -115,18 +115,21 @@ final class RequestReplyTest extends TestCase
             // intentionally do not respond
         });
 
-        $before = $this->conn->numSubscriptions();
-
+        // First request initializes the muxed inbox subscription (+1)
         try {
             $this->conn->request('test.rr.silent.' . $id, 'x', 0.2);
         } catch (\Throwable) {
         }
 
-        self::assertSame($before, $this->conn->numSubscriptions());
-        self::assertSame(
-            ['test.rr.silent.' . $id],
-            $this->waitForServerSubscriptions($this->connectionName, 1),
-        );
+        $after = $this->conn->numSubscriptions();
+
+        // Second failed request should NOT add more subscriptions
+        try {
+            $this->conn->request('test.rr.silent.' . $id, 'x', 0.2);
+        } catch (\Throwable) {
+        }
+
+        self::assertSame($after, $this->conn->numSubscriptions());
     }
 
     public function testRequestMessageTimeoutCleansUpSubscription(): void
@@ -135,8 +138,7 @@ final class RequestReplyTest extends TestCase
             // intentionally do not respond
         });
 
-        $before = $this->conn->numSubscriptions();
-
+        // First request initializes the muxed inbox subscription (+1)
         try {
             $this->conn->requestMessage(
                 new Message(subject: 'test.rr.silent.msg.' . $id, data: 'x'),
@@ -145,11 +147,18 @@ final class RequestReplyTest extends TestCase
         } catch (\Throwable) {
         }
 
-        self::assertSame($before, $this->conn->numSubscriptions());
-        self::assertSame(
-            ['test.rr.silent.msg.' . $id],
-            $this->waitForServerSubscriptions($this->connectionName, 1),
-        );
+        $after = $this->conn->numSubscriptions();
+
+        // Second failed request should NOT add more subscriptions
+        try {
+            $this->conn->requestMessage(
+                new Message(subject: 'test.rr.silent.msg.' . $id, data: 'x'),
+                0.2,
+            );
+        } catch (\Throwable) {
+        }
+
+        self::assertSame($after, $this->conn->numSubscriptions());
     }
 
     public function testRequestReplyWithQueueGroup(): void
@@ -168,6 +177,70 @@ final class RequestReplyTest extends TestCase
         $reply = $this->conn->request('test.rr.queue', 'test', 2.0);
         self::assertStringStartsWith('from-', $reply->data);
         self::assertCount(1, $handledBy); // Only one worker responds
+    }
+
+    public function testMuxedInboxReusesSingleSubscription(): void
+    {
+        $this->conn->subscribe('test.rr.mux', function (Message $msg): void {
+            $msg->respond('ok');
+        });
+
+        // Before any request, no muxed sub exists
+        $before = $this->conn->numSubscriptions();
+
+        $reply1 = $this->conn->request('test.rr.mux', 'a', 2.0);
+        self::assertSame('ok', $reply1->data);
+
+        // After first request, the muxed sub is created (+1)
+        $afterFirst = $this->conn->numSubscriptions();
+        self::assertSame($before + 1, $afterFirst);
+
+        $reply2 = $this->conn->request('test.rr.mux', 'b', 2.0);
+        self::assertSame('ok', $reply2->data);
+
+        // After second request, no new subscription was added
+        self::assertSame($afterFirst, $this->conn->numSubscriptions());
+    }
+
+    public function testOldRequestStyleCreatesPerRequestSubscription(): void
+    {
+        $conn = Connection::connect(self::natsUrl(), new ConnectionOptions(
+            name: 'old-style-test-' . uniqid(),
+            useOldRequestStyle: true,
+        ));
+
+        try {
+            $conn->subscribe('test.rr.old', function (Message $msg): void {
+                $msg->respond('old-ok');
+            });
+
+            $reply = $conn->request('test.rr.old', 'x', 2.0);
+            self::assertSame('old-ok', $reply->data);
+        } finally {
+            $conn->close();
+        }
+    }
+
+    public function testOldRequestStyleRequestMessage(): void
+    {
+        $conn = Connection::connect(self::natsUrl(), new ConnectionOptions(
+            name: 'old-style-msg-test-' . uniqid(),
+            useOldRequestStyle: true,
+        ));
+
+        try {
+            $conn->subscribe('test.rr.old.msg', function (Message $msg): void {
+                $msg->respond('old-msg-ok');
+            });
+
+            $reply = $conn->requestMessage(
+                new Message(subject: 'test.rr.old.msg', data: 'x'),
+                2.0,
+            );
+            self::assertSame('old-msg-ok', $reply->data);
+        } finally {
+            $conn->close();
+        }
     }
 
     /**

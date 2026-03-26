@@ -54,6 +54,13 @@ final class Connection
     /** @var \Psr\Log\LoggerInterface|null */
     private ?object $logger = null;
 
+    // Muxed request-reply state
+    private ?Subscription $respMux = null;
+    private string $respSubPrefix = '';
+    private int $respSubLen = 0;
+    /** @var array<string, ?Message> */
+    private array $respMap = [];
+
     // Dynamic event handlers (override options at runtime)
     private ?\Closure $onDisconnectHandler = null;
     private ?\Closure $onReconnectHandler = null;
@@ -200,21 +207,43 @@ final class Connection
      */
     public function request(string $subject, string $data = '', float $timeout = 2.0): Message
     {
-        $inbox = $this->newInbox();
-        $sub = $this->subscribeSync($inbox);
-        $sub->autoUnsubscribe(1);
+        if ($this->options->useOldRequestStyle) {
+            return $this->oldRequest($subject, $data, $timeout);
+        }
+
+        $this->ensureConnected();
+
+        if (!$this->options->skipSubjectValidation) {
+            self::validateSubject($subject);
+        }
+
+        if ($this->respMux === null) {
+            $this->initMuxedRequest();
+        }
+
+        $inbox = $this->newRespInbox();
+        $token = substr($inbox, $this->respSubLen + 1);
+        $this->respMap[$token] = null;
 
         try {
             $this->publish($subject, $data, $inbox);
             $this->flushWrite();
 
-            $msg = $sub->nextMessage($timeout);
-        } catch (\Throwable $e) {
-            $this->cleanupRequestSubscription($sub);
-            throw $e;
+            $deadline = microtime(true) + $timeout;
+            while ($this->respMap[$token] === null) {
+                $remaining = $deadline - microtime(true);
+                if ($remaining <= 0) {
+                    throw new TimeoutException("Request timed out after {$timeout}s");
+                }
+                $this->processIncoming(min($remaining, 0.1));
+            }
+
+            $msg = $this->respMap[$token];
+        } finally {
+            unset($this->respMap[$token]);
         }
 
-        $this->checkNoResponders($msg, $sub, $subject);
+        $this->checkNoRespondersMsg($msg, $subject);
 
         return $msg;
     }
@@ -225,9 +254,23 @@ final class Connection
      */
     public function requestMessage(Message $msg, float $timeout = 2.0): Message
     {
-        $inbox = $this->newInbox();
-        $sub = $this->subscribeSync($inbox);
-        $sub->autoUnsubscribe(1);
+        if ($this->options->useOldRequestStyle) {
+            return $this->oldRequestMessage($msg, $timeout);
+        }
+
+        $this->ensureConnected();
+
+        if (!$this->options->skipSubjectValidation) {
+            self::validateSubject($msg->subject);
+        }
+
+        if ($this->respMux === null) {
+            $this->initMuxedRequest();
+        }
+
+        $inbox = $this->newRespInbox();
+        $token = substr($inbox, $this->respSubLen + 1);
+        $this->respMap[$token] = null;
 
         try {
             $request = new Message(
@@ -239,13 +282,21 @@ final class Connection
             $this->publishMessage($request);
             $this->flushWrite();
 
-            $reply = $sub->nextMessage($timeout);
-        } catch (\Throwable $e) {
-            $this->cleanupRequestSubscription($sub);
-            throw $e;
+            $deadline = microtime(true) + $timeout;
+            while ($this->respMap[$token] === null) {
+                $remaining = $deadline - microtime(true);
+                if ($remaining <= 0) {
+                    throw new TimeoutException("Request timed out after {$timeout}s");
+                }
+                $this->processIncoming(min($remaining, 0.1));
+            }
+
+            $reply = $this->respMap[$token];
+        } finally {
+            unset($this->respMap[$token]);
         }
 
-        $this->checkNoResponders($reply, $sub, $msg->subject);
+        $this->checkNoRespondersMsg($reply, $msg->subject);
 
         return $reply;
     }
@@ -264,6 +315,8 @@ final class Connection
         $this->transport->close();
         $this->parser->reset();
         $this->subscriptions = [];
+        $this->respMux = null;
+        $this->respMap = [];
 
         $handler = $this->onCloseHandler;
         if ($handler !== null) {
@@ -892,6 +945,83 @@ final class Connection
     public function removeSubscription(string $sid): void
     {
         unset($this->subscriptions[$sid]);
+    }
+
+    private function initMuxedRequest(): void
+    {
+        $this->respSubPrefix = $this->newInbox() . '.';
+        $this->respSubLen = strlen($this->respSubPrefix) - 1;
+
+        $muxSubject = $this->respSubPrefix . '*';
+        $this->respMux = $this->doSubscribe($muxSubject, null, function (Message $msg): void {
+            $token = substr($msg->subject, $this->respSubLen + 1);
+            if (array_key_exists($token, $this->respMap)) {
+                $this->respMap[$token] = $msg;
+            }
+        });
+    }
+
+    private function newRespInbox(): string
+    {
+        return $this->respSubPrefix . Inbox::nuid();
+    }
+
+    private function checkNoRespondersMsg(Message $msg, string $subject): void
+    {
+        if ($msg->headers !== null) {
+            $status = $msg->headers->get('Status');
+            if ($status !== null && str_starts_with(trim($status), '503')) {
+                throw new NatsException('No responders for subject: ' . $subject);
+            }
+        }
+    }
+
+    private function oldRequest(string $subject, string $data, float $timeout): Message
+    {
+        $inbox = $this->newInbox();
+        $sub = $this->subscribeSync($inbox);
+        $sub->autoUnsubscribe(1);
+
+        try {
+            $this->publish($subject, $data, $inbox);
+            $this->flushWrite();
+
+            $msg = $sub->nextMessage($timeout);
+        } catch (\Throwable $e) {
+            $this->cleanupRequestSubscription($sub);
+            throw $e;
+        }
+
+        $this->checkNoResponders($msg, $sub, $subject);
+
+        return $msg;
+    }
+
+    private function oldRequestMessage(Message $msg, float $timeout): Message
+    {
+        $inbox = $this->newInbox();
+        $sub = $this->subscribeSync($inbox);
+        $sub->autoUnsubscribe(1);
+
+        try {
+            $request = new Message(
+                subject: $msg->subject,
+                data: $msg->data,
+                replyTo: $inbox,
+                headers: $msg->headers,
+            );
+            $this->publishMessage($request);
+            $this->flushWrite();
+
+            $reply = $sub->nextMessage($timeout);
+        } catch (\Throwable $e) {
+            $this->cleanupRequestSubscription($sub);
+            throw $e;
+        }
+
+        $this->checkNoResponders($reply, $sub, $msg->subject);
+
+        return $reply;
     }
 
     private function checkNoResponders(Message $msg, Subscription $sub, string $subject): void
