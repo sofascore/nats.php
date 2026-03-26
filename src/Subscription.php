@@ -13,6 +13,7 @@ final class Subscription
     private int $maxMessages = 0;
     private bool $closed = false;
     private bool $draining = false;
+    private bool $drained = false;
     private int $pendingMsgLimit = 500_000;       // Go default: DefaultSubPendingMsgsLimit
     private int $pendingBytesLimit = 67_108_864; // 64MB — Go default: DefaultSubPendingBytesLimit
     private int $pendingBytes = 0;
@@ -81,12 +82,24 @@ final class Subscription
 
     public function drain(): void
     {
+        if ($this->closed || $this->draining) {
+            return;
+        }
+
         $this->draining = true;
         $this->connection->unsubscribeSid($this->sid);
 
-        if ($this->closedHandler !== null) {
-            ($this->closedHandler)();
+        // Don't fire closedHandler here — it will be called when all
+        // pending messages have been delivered (see deliver() and isDrained()).
+        // If no pending messages remain, complete immediately.
+        if ($this->messageBuffer === []) {
+            $this->markDrained();
         }
+    }
+
+    public function isDrained(): bool
+    {
+        return $this->drained;
     }
 
     public function isValid(): bool
@@ -215,6 +228,12 @@ final class Subscription
         // Async handler
         if ($this->handler !== null) {
             ($this->handler)($msg);
+
+            // If draining and this was the last in-flight message, mark drained
+            if ($this->draining && $this->messageBuffer === []) {
+                $this->markDrained();
+            }
+
             return;
         }
 
@@ -248,6 +267,24 @@ final class Subscription
             throw new NatsException('No message in buffer');
         }
         $this->pendingBytes -= strlen($msg->data);
+
+        // For sync subscriptions: if draining and buffer is now empty, mark drained
+        if ($this->draining && $this->messageBuffer === []) {
+            $this->markDrained();
+        }
+
         return $msg;
+    }
+
+    private function markDrained(): void
+    {
+        $this->closed = true;
+        $this->drained = true;
+        $this->draining = false;
+        $this->connection->removeSubscription($this->sid);
+
+        if ($this->closedHandler !== null) {
+            ($this->closedHandler)();
+        }
     }
 }

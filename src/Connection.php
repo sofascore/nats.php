@@ -347,9 +347,18 @@ final class Connection
 
         $this->status = ConnectionStatus::DrainingSubscriptions;
 
-        // Unsubscribe all
+        // Tell all subscriptions to start draining (send UNSUB)
         foreach ($this->subscriptions as $sub) {
             $sub->drain();
+        }
+
+        // Process incoming messages until all subs are fully drained or timeout
+        while (!$this->allSubscriptionsDrained() && microtime(true) < $deadline) {
+            $this->processIncoming(min(0.1, $deadline - microtime(true)));
+        }
+
+        if (!$this->allSubscriptionsDrained()) {
+            $this->log('warning', 'Drain timeout exceeded');
         }
 
         $this->status = ConnectionStatus::DrainingPublications;
@@ -359,10 +368,8 @@ final class Connection
             try {
                 $this->flush($remaining);
             } catch (TimeoutException) {
-                $this->log('warning', 'Drain timeout exceeded');
+                $this->log('warning', 'Drain timeout exceeded during flush');
             }
-        } else {
-            $this->log('warning', 'Drain timeout exceeded');
         }
 
         $this->close();
@@ -1102,6 +1109,17 @@ final class Connection
         }
 
         $this->writeBuffer .= $data;
+    }
+
+    private function allSubscriptionsDrained(): bool
+    {
+        foreach ($this->subscriptions as $sub) {
+            if (!$sub->isDrained()) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private function flushWrite(): void
