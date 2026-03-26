@@ -210,14 +210,7 @@ final class Connection
             throw $e;
         }
 
-        // Check for no responders (status 503)
-        if ($msg->headers !== null) {
-            $status = $msg->headers->get('Status');
-            if ($status !== null && str_starts_with(trim($status), '503')) {
-                $sub->unsubscribe();
-                throw new NatsException('No responders for subject: ' . $subject);
-            }
-        }
+        $this->checkNoResponders($msg, $sub, $subject);
 
         return $msg;
     }
@@ -242,11 +235,15 @@ final class Connection
             $this->publishMessage($request);
             $this->flushWrite();
 
-            return $sub->nextMessage($timeout);
+            $reply = $sub->nextMessage($timeout);
         } catch (\Throwable $e) {
             $this->cleanupRequestSubscription($sub);
             throw $e;
         }
+
+        $this->checkNoResponders($reply, $sub, $msg->subject);
+
+        return $reply;
     }
 
     // --- Connection lifecycle ---
@@ -891,6 +888,17 @@ final class Connection
     public function removeSubscription(string $sid): void
     {
         unset($this->subscriptions[$sid]);
+    }
+
+    private function checkNoResponders(Message $msg, Subscription $sub, string $subject): void
+    {
+        if ($msg->headers !== null) {
+            $status = $msg->headers->get('Status');
+            if ($status !== null && str_starts_with(trim($status), '503')) {
+                $sub->unsubscribe();
+                throw new NatsException('No responders for subject: ' . $subject);
+            }
+        }
     }
 
     private function cleanupRequestSubscription(Subscription $sub): void

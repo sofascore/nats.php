@@ -81,6 +81,20 @@ final class RequestReplyTest extends TestCase
         self::assertTrue($threw, 'Expected exception for no responders');
     }
 
+    public function testRequestMessageNoResponders(): void
+    {
+        $threw = false;
+        try {
+            $this->conn->requestMessage(
+                new Message(subject: 'test.rr.nobody.msg.unique.' . uniqid(), data: 'hello'),
+                0.5,
+            );
+        } catch (\Throwable) {
+            $threw = true;
+        }
+        self::assertTrue($threw, 'Expected exception for no responders on requestMessage');
+    }
+
     public function testMultipleRequestReplies(): void
     {
         $this->conn->subscribe('test.rr.multi', function (Message $msg): void {
