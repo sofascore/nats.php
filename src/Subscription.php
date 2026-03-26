@@ -87,7 +87,7 @@ final class Subscription
         }
 
         $this->draining = true;
-        $this->connection->unsubscribeSid($this->sid);
+        $this->connection->unsubscribeSid($this->sid, removeLocal: false);
 
         // Don't fire closedHandler here — it will be called when all
         // pending messages have been delivered (see deliver() and isDrained()).

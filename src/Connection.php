@@ -966,13 +966,13 @@ final class Connection
     }
 
     /** @internal */
-    public function unsubscribeSid(string $sid, ?int $maxMessages = null): void
+    public function unsubscribeSid(string $sid, ?int $maxMessages = null, bool $removeLocal = true): void
     {
         $this->log('debug', 'Unsubscribed sid={sid}', ['sid' => $sid]);
         $cmd = $this->writer->unsub($sid, $maxMessages);
         $this->writeToServer($cmd);
 
-        if ($maxMessages === null || $maxMessages === 0) {
+        if ($removeLocal && ($maxMessages === null || $maxMessages === 0)) {
             unset($this->subscriptions[$sid]);
         }
     }
