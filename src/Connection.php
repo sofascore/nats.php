@@ -267,6 +267,19 @@ final class Connection
         }
     }
 
+    /**
+     * Returns true when callbacks (except onClose) should be suppressed.
+     *
+     * When the noCallbacksAfterClientClose option is enabled and the
+     * connection has been closed, all callbacks except onClose are skipped.
+     * This mirrors the Go client's NoCallbacksAfterClientClose behaviour.
+     */
+    private function callbacksSuppressed(): bool
+    {
+        return $this->options->noCallbacksAfterClientClose
+            && $this->status === ConnectionStatus::Closed;
+    }
+
     public function drain(): void
     {
         $this->log('info', 'Draining connection');
@@ -921,7 +934,7 @@ final class Connection
         );
 
         $handler = $this->onErrorHandler;
-        if ($handler !== null) {
+        if ($handler !== null && !$this->callbacksSuppressed()) {
             $handler($this, $this->lastError);
         }
     }
@@ -1059,7 +1072,7 @@ final class Connection
         $this->lastError = new NatsException("Server error: {$errMsg}");
 
         $handler = $this->onErrorHandler;
-        if ($handler !== null) {
+        if ($handler !== null && !$this->callbacksSuppressed()) {
             $handler($this, $this->lastError);
             return;
         }
@@ -1092,7 +1105,7 @@ final class Connection
                 if (!in_array($normalized, $this->serverPool, true)) {
                     $this->serverPool[] = $normalized;
                     $handler = $this->options->onDiscoveredServers;
-                    if ($handler !== null) {
+                    if ($handler !== null && !$this->callbacksSuppressed()) {
                         $handler($this);
                     }
                 }
@@ -1103,7 +1116,7 @@ final class Connection
         if ($newInfo->lameDuckMode) {
             $this->log('warning', 'Server entered lame duck mode');
             $handler = $this->options->onLameDuckMode;
-            if ($handler !== null) {
+            if ($handler !== null && !$this->callbacksSuppressed()) {
                 $handler($this);
             }
         }
@@ -1133,7 +1146,7 @@ final class Connection
     private function handleDisconnect(): void
     {
         $handler = $this->onDisconnectHandler;
-        if ($handler !== null) {
+        if ($handler !== null && !$this->callbacksSuppressed()) {
             $handler($this);
         }
 
@@ -1187,7 +1200,7 @@ final class Connection
                     $this->log('info', 'Reconnected to {url}', ['url' => $url]);
 
                     $handler = $this->onReconnectHandler;
-                    if ($handler !== null) {
+                    if ($handler !== null && !$this->callbacksSuppressed()) {
                         $handler($this);
                     }
 
