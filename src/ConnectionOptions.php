@@ -82,6 +82,9 @@ final readonly class ConnectionOptions
         /** @var (\Closure(string): list<string>)|null Custom host resolver for testing or custom DNS strategies */
         public ?\Closure $customHostResolver = null,
 
+        // Request-Reply
+        public bool $useOldRequestStyle = false,
+
         // Logging
         ?object $logger = null,
     ) {
@@ -351,6 +354,11 @@ final readonly class ConnectionOptions
     public function withCustomReconnectDelay(\Closure $cb): self
     {
         return clone($this, ['customReconnectDelay' => $cb]);
+    }
+
+    public function withUseOldRequestStyle(bool $enabled = true): self
+    {
+        return clone($this, ['useOldRequestStyle' => $enabled]);
     }
 
     // --- Computed ---
