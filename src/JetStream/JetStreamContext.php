@@ -553,6 +553,37 @@ final class JetStreamContext
 
     // --- Internal API ---
 
+    /** @var list<string> */
+    private const array RETRYABLE_OPERATIONS = [
+        'INFO',
+        'STREAM.LIST',
+        'STREAM.NAMES',
+    ];
+
+    /** @var list<string> */
+    private const array RETRYABLE_PREFIXES = [
+        'STREAM.INFO.',
+        'CONSUMER.INFO.',
+        'CONSUMER.LIST.',
+        'CONSUMER.NAMES.',
+        'STREAM.MSG.GET.',
+    ];
+
+    private function isRetryable(string $operation): bool
+    {
+        if (in_array($operation, self::RETRYABLE_OPERATIONS, true)) {
+            return true;
+        }
+
+        foreach (self::RETRYABLE_PREFIXES as $prefix) {
+            if (str_starts_with($operation, $prefix)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     /**
      * Make a JetStream API request.
      *
@@ -565,14 +596,41 @@ final class JetStreamContext
         $subject = $this->options->apiSubject($operation);
         $data = $payload !== null ? json_encode($payload, JSON_THROW_ON_ERROR) : '';
 
-        $reply = $this->conn->request($subject, $data, $this->options->timeout);
-        $response = T::stringKeyArray(json_decode($reply->data, true, 512, JSON_THROW_ON_ERROR));
+        $shouldRetry = $this->options->apiRetries > 0 && $this->isRetryable($operation);
+        $maxAttempts = $shouldRetry ? 1 + $this->options->apiRetries : 1;
 
-        if (isset($response['error'])) {
-            throw JetStreamException::fromApiResponse($response);
+        $lastException = null;
+        for ($attempt = 0; $attempt < $maxAttempts; $attempt++) {
+            if ($attempt > 0) {
+                usleep((int) ($this->options->apiRetryWait * 1_000_000));
+            }
+
+            try {
+                $reply = $this->conn->request($subject, $data, $this->options->timeout);
+                $response = T::stringKeyArray(json_decode($reply->data, true, 512, JSON_THROW_ON_ERROR));
+
+                if (isset($response['error'])) {
+                    throw JetStreamException::fromApiResponse($response);
+                }
+
+                return $response;
+            } catch (JetStreamException $e) {
+                $lastException = $e;
+
+                // Retry transient server errors (5xx) on read-only operations
+                if (!$shouldRetry || $e->getCode() < 500) {
+                    throw $e;
+                }
+            } catch (\Throwable $e) {
+                $lastException = $e;
+
+                if (!$shouldRetry) {
+                    throw $e;
+                }
+            }
         }
 
-        return $response;
+        throw $lastException;
     }
 
     // --- Private helpers ---
