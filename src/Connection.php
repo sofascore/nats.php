@@ -343,6 +343,8 @@ final class Connection
     {
         $this->shutdownInitiated = true;
         $this->log('info', 'Draining connection');
+        $deadline = microtime(true) + $this->options->drainTimeout;
+
         $this->status = ConnectionStatus::DrainingSubscriptions;
 
         // Unsubscribe all
@@ -351,7 +353,18 @@ final class Connection
         }
 
         $this->status = ConnectionStatus::DrainingPublications;
-        $this->flush();
+        $remaining = $deadline - microtime(true);
+
+        if ($remaining > 0) {
+            try {
+                $this->flush($remaining);
+            } catch (TimeoutException) {
+                $this->log('warning', 'Drain timeout exceeded');
+            }
+        } else {
+            $this->log('warning', 'Drain timeout exceeded');
+        }
+
         $this->close();
     }
 
