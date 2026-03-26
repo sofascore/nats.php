@@ -256,78 +256,96 @@ final class KeyValue implements KeyValueInterface
     public function listKeys(): \Generator
     {
         $stream = $this->js->stream("KV_{$this->bucketName}");
-        $consumer = $stream->orderedConsumer();
-        $batch = $consumer->fetch(1000);
+        $prefix = "\$KV.{$this->bucketName}.";
 
-        $seenKeys = [];
-        foreach ($batch->messages() as $msg) {
-            $subject = $msg->subject();
-            $key = substr($subject, strlen("\$KV.{$this->bucketName}."));
+        $consumer = $stream->orderedConsumer(new OrderedConsumerConfig(
+            headersOnly: true,
+        ));
 
-            // Only yield Put operations, skip deletes
-            $operation = KeyValueOperation::Put;
-            $headers = $msg->headers();
-            if ($headers !== null) {
-                $kvOp = $headers->get('KV-Operation');
-                if ($kvOp !== null) {
-                    $operation = KeyValueOperation::from($kvOp);
+        $keys = [];
+        while (true) {
+            $batch = $consumer->fetch(1000, new FetchOptions(timeout: 1.0));
+
+            $count = 0;
+            foreach ($batch->messages() as $msg) {
+                $count++;
+                $key = substr($msg->subject(), strlen($prefix));
+
+                $operation = KeyValueOperation::Put;
+                $headers = $msg->headers();
+                if ($headers !== null) {
+                    $kvOp = $headers->get('KV-Operation');
+                    if ($kvOp !== null) {
+                        $operation = KeyValueOperation::from($kvOp);
+                    }
                 }
+
+                if ($operation === KeyValueOperation::Put) {
+                    $keys[$key] = true;
+                } else {
+                    unset($keys[$key]);
+                }
+
+                $msg->ack();
             }
 
-            if ($operation === KeyValueOperation::Put && !isset($seenKeys[$key])) {
-                $seenKeys[$key] = true;
-                yield $key;
+            if ($count === 0) {
+                break;
             }
         }
+
+        yield from array_keys($keys);
     }
 
     public function listKeysFiltered(string ...$filters): \Generator
     {
         $stream = $this->js->stream("KV_{$this->bucketName}");
-        $streamInfo = $stream->info();
         $prefix = "\$KV.{$this->bucketName}.";
 
-        // Build full subject patterns for matching
-        $patterns = array_map(
+        // Build full subject patterns for ordered consumer filter
+        $filterSubjects = array_map(
             fn(string $f) => $prefix . $f,
             $filters,
         );
 
-        $seenKeys = [];
-        for ($seq = $streamInfo->state->firstSeq; $seq <= $streamInfo->state->lastSeq; $seq++) {
-            try {
-                $rawMsg = $stream->getMessage($seq);
-            } catch (\Throwable) {
-                continue;
-            }
+        $consumer = $stream->orderedConsumer(new OrderedConsumerConfig(
+            filterSubjects: $filterSubjects,
+            headersOnly: true,
+        ));
 
-            // Check if subject matches any of the filter patterns
-            $matches = false;
-            foreach ($patterns as $pattern) {
-                if ($this->subjectMatchesFilter($rawMsg->subject, $pattern)) {
-                    $matches = true;
-                    break;
+        $keys = [];
+        while (true) {
+            $batch = $consumer->fetch(1000, new FetchOptions(timeout: 1.0));
+
+            $count = 0;
+            foreach ($batch->messages() as $msg) {
+                $count++;
+                $key = substr($msg->subject(), strlen($prefix));
+
+                $operation = KeyValueOperation::Put;
+                $headers = $msg->headers();
+                if ($headers !== null) {
+                    $kvOp = $headers->get('KV-Operation');
+                    if ($kvOp !== null) {
+                        $operation = KeyValueOperation::from($kvOp);
+                    }
                 }
-            }
-            if (!$matches) {
-                continue;
-            }
 
-            $key = substr($rawMsg->subject, strlen($prefix));
-
-            $operation = KeyValueOperation::Put;
-            if ($rawMsg->headers !== null) {
-                $kvOp = $rawMsg->headers->get('KV-Operation');
-                if ($kvOp !== null) {
-                    $operation = KeyValueOperation::from($kvOp);
+                if ($operation === KeyValueOperation::Put) {
+                    $keys[$key] = true;
+                } else {
+                    unset($keys[$key]);
                 }
+
+                $msg->ack();
             }
 
-            if ($operation === KeyValueOperation::Put && !isset($seenKeys[$key])) {
-                $seenKeys[$key] = true;
-                yield $key;
+            if ($count === 0) {
+                break;
             }
         }
+
+        yield from array_keys($keys);
     }
 
     public function watch(string $keys = '>', WatchOptions ...$opts): KeyWatcher

@@ -210,6 +210,62 @@ final class KeyValueTest extends TestCase
         $kv->put('', 'value'); // Empty key
     }
 
+    public function testListKeysExcludesDeleted(): void
+    {
+        $kv = $this->createBucket();
+
+        $kv->put('alive', '1');
+        $kv->put('deleted', '2');
+        $kv->put('also-alive', '3');
+        $kv->delete('deleted');
+
+        $keys = iterator_to_array($kv->listKeys(), false);
+        sort($keys);
+
+        self::assertSame(['alive', 'also-alive'], $keys);
+    }
+
+    public function testListKeysExcludesPurged(): void
+    {
+        $kv = $this->createBucket();
+
+        $kv->put('keep', 'v1');
+        $kv->put('purged', 'v1');
+        $kv->purge('purged');
+
+        $keys = iterator_to_array($kv->listKeys(), false);
+
+        self::assertSame(['keep'], $keys);
+    }
+
+    public function testListKeysCompletesPromptly(): void
+    {
+        $kv = $this->createBucket();
+
+        $kv->put('only-key', 'value');
+
+        $start = microtime(true);
+        $keys = iterator_to_array($kv->listKeys(), false);
+        $elapsed = microtime(true) - $start;
+
+        self::assertSame(['only-key'], $keys);
+        self::assertLessThan(5.0, $elapsed, 'listKeys() should not block for the full fetch timeout');
+    }
+
+    public function testListKeysFilteredExcludesDeleted(): void
+    {
+        $kv = $this->createBucket();
+
+        $kv->put('a.one', '1');
+        $kv->put('a.two', '2');
+        $kv->put('b.one', '3');
+        $kv->delete('a.two');
+
+        $keys = iterator_to_array($kv->listKeysFiltered('a.*'), false);
+
+        self::assertSame(['a.one'], $keys);
+    }
+
     public function testHistory(): void
     {
         $kv = $this->createBucket();
