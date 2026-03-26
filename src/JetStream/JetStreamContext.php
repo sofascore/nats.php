@@ -566,6 +566,7 @@ final class JetStreamContext
         'CONSUMER.INFO.',
         'CONSUMER.LIST.',
         'CONSUMER.NAMES.',
+        'STREAM.MSG.GET.',
     ];
 
     private function isRetryable(string $operation): bool

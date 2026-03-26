@@ -25,6 +25,7 @@ final class JetStreamContextRetryTest extends TestCase
         yield 'CONSUMER.INFO.stream.consumer' => ['CONSUMER.INFO.stream.consumer', true];
         yield 'CONSUMER.LIST.stream' => ['CONSUMER.LIST.stream', true];
         yield 'CONSUMER.NAMES.stream' => ['CONSUMER.NAMES.stream', true];
+        yield 'STREAM.MSG.GET.mystream' => ['STREAM.MSG.GET.mystream', true];
 
         // Non-retryable (write) operations
         yield 'STREAM.CREATE.mystream' => ['STREAM.CREATE.mystream', false];
