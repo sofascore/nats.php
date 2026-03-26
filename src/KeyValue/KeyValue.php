@@ -303,10 +303,10 @@ final class KeyValue implements KeyValueInterface
         $prefix = "\$KV.{$this->bucketName}.";
 
         // Build full subject patterns for ordered consumer filter
-        $filterSubjects = array_map(
+        $filterSubjects = array_values(array_map(
             fn(string $f) => $prefix . $f,
             $filters,
-        );
+        ));
 
         $consumer = $stream->orderedConsumer(new OrderedConsumerConfig(
             filterSubjects: $filterSubjects,
@@ -487,32 +487,4 @@ final class KeyValue implements KeyValueInterface
         }
     }
 
-    /**
-     * Match a NATS subject against a filter pattern supporting `*` and `>` wildcards.
-     */
-    private function subjectMatchesFilter(string $subject, string $filter): bool
-    {
-        if ($subject === $filter) {
-            return true;
-        }
-
-        $subjectTokens = explode('.', $subject);
-        $filterTokens = explode('.', $filter);
-
-        $si = 0;
-        $fi = 0;
-        while ($si < count($subjectTokens) && $fi < count($filterTokens)) {
-            $ft = $filterTokens[$fi];
-            if ($ft === '>') {
-                return true; // matches rest
-            }
-            if ($ft !== '*' && $ft !== $subjectTokens[$si]) {
-                return false;
-            }
-            $si++;
-            $fi++;
-        }
-
-        return $si === count($subjectTokens) && $fi === count($filterTokens);
-    }
 }
