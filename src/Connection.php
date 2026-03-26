@@ -1064,6 +1064,13 @@ final class Connection
             unset($this->subscriptions[$sid]);
         }
 
+        // During reconnect there is no live server-side subscription to update.
+        // Subscription state is reconstructed from local bookkeeping on replay,
+        // so avoid queueing redundant UNSUB commands into the reconnect buffer.
+        if ($this->status === ConnectionStatus::Reconnecting) {
+            return;
+        }
+
         $cmd = $this->writer->unsub($sid, $maxMessages);
         $this->writeToServer($cmd);
     }
@@ -1448,6 +1455,9 @@ final class Connection
                     foreach ($this->subscriptions as $sid => $sub) {
                         $cmd = $this->writer->sub($sub->subject(), $sid, $sub->queue());
                         $this->transport->write($cmd);
+                        if ($sub->maxMessages() > 0) {
+                            $this->transport->write($this->writer->unsub($sid, $sub->maxMessages()));
+                        }
                     }
                     if ($this->subscriptions !== []) {
                         $this->log('debug', 'Re-subscribed {count} subscriptions', [
@@ -1472,6 +1482,9 @@ final class Connection
                     foreach ($this->subscriptions as $sid => $sub) {
                         $cmd = $this->writer->sub($sub->subject(), $sid, $sub->queue());
                         $this->transport->write($cmd);
+                        if ($sub->maxMessages() > 0) {
+                            $this->transport->write($this->writer->unsub($sid, $sub->maxMessages()));
+                        }
                     }
                     if ($this->subscriptions !== []) {
                         $this->log('debug', 'Re-subscribed {count} subscriptions', [
@@ -1575,6 +1588,9 @@ final class Connection
                         foreach ($this->subscriptions as $sid => $sub) {
                             $cmd = $this->writer->sub($sub->subject(), $sid, $sub->queue());
                             $this->transport->write($cmd);
+                            if ($sub->maxMessages() > 0) {
+                                $this->transport->write($this->writer->unsub($sid, $sub->maxMessages()));
+                            }
                         }
                         if ($this->subscriptions !== []) {
                             $this->log('debug', 'Re-subscribed {count} subscriptions', [

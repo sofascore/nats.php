@@ -138,6 +138,11 @@ final class Subscription
         return $this->delivered;
     }
 
+    public function maxMessages(): int
+    {
+        return $this->maxMessages;
+    }
+
     public function dropped(): int
     {
         return $this->dropped;

@@ -178,4 +178,20 @@ final class ReconnectBufferExceededTest extends TestCase
         // No pong callback should have been registered
         self::assertEmpty($pongCallbacks->getValue($conn));
     }
+
+    public function testAutoUnsubscribeDuringReconnectDoesNotUseReconnectBuffer(): void
+    {
+        $conn = $this->createReconnectingConnection(1); // tiny buffer
+
+        $ref = new \ReflectionClass(Connection::class);
+        $method = $ref->getMethod('doSubscribe');
+        $sub = $method->invoke($conn, '_INBOX.test', null, null);
+
+        $sub->autoUnsubscribe(1);
+
+        $subscriptions = $ref->getProperty('subscriptions')->getValue($conn);
+        self::assertArrayHasKey('s1', $subscriptions);
+        self::assertSame('', $this->getReconnectBuffer($conn));
+        self::assertSame(1, $subscriptions['s1']->maxMessages());
+    }
 }
