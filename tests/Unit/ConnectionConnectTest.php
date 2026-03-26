@@ -309,7 +309,7 @@ final class ConnectionConnectTest extends TestCase
             retryOnFailedConnect: true,
             maxReconnects: 5,
             reconnectWait: 0.0,
-            onConnect: function () use (&$onConnectCalled) {
+            onConnect: function () use (&$onConnectCalled): void {
                 $onConnectCalled = true;
             },
         );
