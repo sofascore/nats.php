@@ -72,7 +72,7 @@ readonly class ConsumerConfig
         }
         if ($this->replicas > 0) { $data['num_replicas'] = $this->replicas; }
         if ($this->deliverSubject === null) { $data['max_waiting'] = $this->maxWaiting; }
-        $data['max_ack_pending'] = $this->maxAckPending;
+        if ($this->ackPolicy !== AckPolicy::None) { $data['max_ack_pending'] = $this->maxAckPending; }
         if ($this->headersOnly) { $data['headers_only'] = true; }
         if ($this->metadata !== []) { $data['metadata'] = $this->metadata; }
         if ($this->deliverSubject !== null) { $data['deliver_subject'] = $this->deliverSubject; }

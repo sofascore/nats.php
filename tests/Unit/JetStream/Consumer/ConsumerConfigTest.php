@@ -113,6 +113,27 @@ final class ConsumerConfigTest extends TestCase
         self::assertSame($original->maxRequestMaxBytes, $restored->maxRequestMaxBytes);
     }
 
+    public function testMaxAckPendingOmittedWhenAckNone(): void
+    {
+        $config = new ConsumerConfig(
+            ackPolicy: \Sofascore\Nats\Enum\AckPolicy::None,
+        );
+        $array = $config->toArray();
+
+        self::assertArrayNotHasKey('max_ack_pending', $array);
+    }
+
+    public function testMaxAckPendingIncludedWhenAckExplicit(): void
+    {
+        $config = new ConsumerConfig(
+            ackPolicy: \Sofascore\Nats\Enum\AckPolicy::Explicit,
+            maxAckPending: 500,
+        );
+        $array = $config->toArray();
+
+        self::assertSame(500, $array['max_ack_pending']);
+    }
+
     public function testMaxWaitingOmittedForPushConsumer(): void
     {
         $config = new ConsumerConfig(
