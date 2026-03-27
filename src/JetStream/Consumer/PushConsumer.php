@@ -157,6 +157,7 @@ final class PushConsumer implements PushConsumerInterface
 
         match (true) {
             $statusCode === 100 => $this->handleStatus100($msg),
+            $statusCode === 409 => $this->handleStatus409($description ?? 'Consumer error'),
             $statusCode >= 400 => $this->handleTerminalStatus($statusCode, $description ?? 'Server error'),
             default => $this->reportError(
                 new PushConsumerException("Unexpected status {$statusCode}: {$description}", $statusCode),
@@ -179,6 +180,21 @@ final class PushConsumer implements PushConsumerInterface
         $this->lastHeartbeatTime = microtime(true);
     }
 
+    private function handleStatus409(string $description): void
+    {
+        // "Consumer Deleted" is terminal — the consumer no longer exists server-side.
+        // Other 409s (e.g. "Leadership Changed", "Exceeded MaxAckPending") are transient
+        // and surfaced via the error handler without terminating the consumer.
+        if (str_contains($description, 'Consumer Deleted')) {
+            $this->handleTerminalStatus(409, $description);
+            return;
+        }
+
+        $this->reportError(
+            new PushConsumerException("Status 409: {$description}", statusCode: 409),
+        );
+    }
+
     private function handleTerminalStatus(int $statusCode, string $description): void
     {
         $this->status = PushConsumerStatus::Error;
@@ -190,6 +206,14 @@ final class PushConsumer implements PushConsumerInterface
     private function checkHeartbeatTimeout(): void
     {
         if ($this->heartbeatIntervalSeconds <= 0.0) {
+            return;
+        }
+
+        // Pause heartbeat monitoring during reconnect — the transport is down,
+        // not the consumer. Reset the clock so we don't fire a false stall
+        // immediately after reconnection completes.
+        if ($this->js->connection()->isReconnecting()) {
+            $this->lastHeartbeatTime = microtime(true);
             return;
         }
 

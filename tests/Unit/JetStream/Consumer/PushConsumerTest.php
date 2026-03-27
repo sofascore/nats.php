@@ -305,6 +305,63 @@ final class PushConsumerTest extends TestCase
         self::assertStringContainsString('Consumer Deleted', $errors[0]->getMessage());
     }
 
+    public function testStatus409LeadershipChangeIsNotTerminal(): void
+    {
+        $consumer = $this->createConsumer();
+
+        $errors = [];
+        $deliver = $this->activateConsumer(
+            $consumer,
+            function (JetStreamMessage $msg): void {},
+            new PushConsumeOptions(
+                errorHandler: function (\Throwable $e) use (&$errors): void {
+                    $errors[] = $e;
+                },
+            ),
+        );
+
+        $headers = new Headers();
+        $headers->set('Status', '409 Leadership Changed');
+        $deliver(new Message(
+            subject: 'deliver.test',
+            data: '',
+            headers: $headers,
+        ));
+
+        // Leadership change is transient — status should remain Active
+        self::assertSame(PushConsumerStatus::Active, $consumer->status());
+        self::assertCount(1, $errors);
+        self::assertInstanceOf(PushConsumerException::class, $errors[0]);
+        self::assertSame(409, $errors[0]->statusCode);
+    }
+
+    public function testStatus409ExceededMaxAckPendingIsNotTerminal(): void
+    {
+        $consumer = $this->createConsumer();
+
+        $errors = [];
+        $deliver = $this->activateConsumer(
+            $consumer,
+            function (JetStreamMessage $msg): void {},
+            new PushConsumeOptions(
+                errorHandler: function (\Throwable $e) use (&$errors): void {
+                    $errors[] = $e;
+                },
+            ),
+        );
+
+        $headers = new Headers();
+        $headers->set('Status', '409 Exceeded MaxAckPending');
+        $deliver(new Message(
+            subject: 'deliver.test',
+            data: '',
+            headers: $headers,
+        ));
+
+        self::assertSame(PushConsumerStatus::Active, $consumer->status());
+        self::assertCount(1, $errors);
+    }
+
     public function testTerminalStatus503(): void
     {
         $consumer = $this->createConsumer();
@@ -524,6 +581,39 @@ final class PushConsumerTest extends TestCase
         $consumer->checkHeartbeat();
 
         self::assertSame(PushConsumerStatus::Error, $consumer->status());
+    }
+
+    public function testHeartbeatPausedDuringReconnect(): void
+    {
+        $consumer = $this->createConsumer(idleHeartbeat: 0.001);
+
+        $errors = [];
+        $this->activateConsumer(
+            $consumer,
+            function (JetStreamMessage $msg): void {},
+            new PushConsumeOptions(
+                errorHandler: function (\Throwable $e) use (&$errors): void {
+                    $errors[] = $e;
+                },
+            ),
+        );
+
+        // Force expired heartbeat
+        $ref = new \ReflectionClass(PushConsumer::class);
+        $ref->getProperty('lastHeartbeatTime')->setValue($consumer, microtime(true) - 999.0);
+
+        // Set connection status to Reconnecting
+        $js = $ref->getProperty('js')->getValue($consumer);
+        $conn = $js->connection();
+        $connRef = new \ReflectionClass(\Sofascore\Nats\Connection::class);
+        $connRef->getProperty('status')->setValue($conn, \Sofascore\Nats\Enum\ConnectionStatus::Reconnecting);
+
+        // checkHeartbeat should no-op during reconnect
+        $consumer->checkHeartbeat();
+
+        // Status should remain Active, not Stalled
+        self::assertSame(PushConsumerStatus::Active, $consumer->status());
+        self::assertCount(0, $errors);
     }
 
     public function testConsumeRollsBackStateOnSubscribeFailure(): void
