@@ -402,13 +402,21 @@ $info = $store->putString('readme.txt', 'Hello!');
 // $info = $store->putFile('/path/to/file.zip');
 
 // Retrieve
+$result = $store->get('config.json'); // Lazy chunk reader
+$chunk = $result->read(8192);
+$result->close();
+
 $content = $store->getBytes('config.json');
 $text = $store->getString('readme.txt');
+$store->getFile('archive.tar', '/tmp/archive.tar'); // Streams directly to disk
 
 // List & delete
-$objects = $store->list();           // ObjectInfo[]
+$objects = $store->list();           // Latest ObjectInfo[] per object name
+$history = $store->list(includeHistory: true); // Full metadata history
 $store->delete('config.json');
 ```
+
+Object Store reads now use internal pull consumers for lazy chunk streaming and latest-only listing. Deployments with granular JetStream auth need `CONSUMER.CREATE` and `CONSUMER.DELETE` on the `OBJ_<bucket>` stream in addition to existing stream read permissions.
 
 ### Micro Services
 

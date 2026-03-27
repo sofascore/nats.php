@@ -8,19 +8,29 @@ final class ObjectResult
 {
     private string $buffer = '';
     private bool $closed = false;
+    private bool $sourceStarted = false;
+    private bool $sourceExhausted = false;
+    /** @var null|\Generator<int, string> */
+    private ?\Generator $source = null;
 
     public function __construct(
         private readonly ObjectInfo $info,
-        string $data,
-    ) {
-        $this->buffer = $data;
-    }
+        private readonly \Closure $sourceFactory,
+        private ?\Closure $onClose = null,
+    ) {}
 
     public function read(int $length): string
     {
-        if ($this->closed || $this->buffer === '') {
+        if ($this->closed || $length <= 0) {
             return '';
         }
+
+        $this->fillBuffer($length);
+
+        if ($this->buffer === '') {
+            return '';
+        }
+
         $chunk = substr($this->buffer, 0, $length);
         $this->buffer = substr($this->buffer, $length);
         return $chunk;
@@ -30,6 +40,11 @@ final class ObjectResult
     {
         $data = $this->buffer;
         $this->buffer = '';
+
+        while (($chunk = $this->nextChunk()) !== null) {
+            $data .= $chunk;
+        }
+
         return $data;
     }
 
@@ -40,8 +55,14 @@ final class ObjectResult
 
     public function close(): void
     {
+        if ($this->closed) {
+            return;
+        }
+
         $this->closed = true;
         $this->buffer = '';
+        $this->source = null;
+        $this->runCleanup();
     }
 
     /**
@@ -51,8 +72,90 @@ final class ObjectResult
      */
     public function writeTo(mixed $resource): int
     {
-        $data = $this->readAll();
-        $written = fwrite($resource, $data);
-        return $written !== false ? $written : 0;
+        $written = 0;
+
+        while (($chunk = $this->read(8192)) !== '') {
+            $offset = 0;
+            $length = strlen($chunk);
+
+            while ($offset < $length) {
+                $chunkWritten = fwrite($resource, substr($chunk, $offset));
+                if ($chunkWritten === false || $chunkWritten === 0) {
+                    return $written;
+                }
+
+                $written += $chunkWritten;
+                $offset += $chunkWritten;
+            }
+        }
+
+        return $written;
+    }
+
+    public function __destruct()
+    {
+        $this->close();
+    }
+
+    private function fillBuffer(int $targetLength): void
+    {
+        while (!$this->closed && strlen($this->buffer) < $targetLength) {
+            $chunk = $this->nextChunk();
+            if ($chunk === null) {
+                return;
+            }
+
+            $this->buffer .= $chunk;
+        }
+    }
+
+    private function nextChunk(): ?string
+    {
+        if ($this->closed || $this->sourceExhausted) {
+            return null;
+        }
+
+        if (!$this->sourceStarted) {
+            /** @var \Generator<int, string> $source */
+            $source = ($this->sourceFactory)();
+            $this->source = $source;
+            $this->sourceStarted = true;
+        }
+
+        if ($this->source === null || !$this->source->valid()) {
+            $this->finishSource();
+            return null;
+        }
+
+        try {
+            $chunk = $this->source->current();
+            $this->source->next();
+            return $chunk;
+        } catch (\Throwable $error) {
+            $this->close();
+            throw $error;
+        }
+    }
+
+    private function finishSource(): void
+    {
+        if ($this->sourceExhausted) {
+            return;
+        }
+
+        $this->sourceExhausted = true;
+        $this->source = null;
+        $this->runCleanup();
+    }
+
+    private function runCleanup(): void
+    {
+        if ($this->onClose === null) {
+            return;
+        }
+
+        $cleanup = $this->onClose;
+        $this->onClose = null;
+        $cleanup();
     }
 }

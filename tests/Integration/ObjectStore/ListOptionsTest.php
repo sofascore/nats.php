@@ -96,4 +96,29 @@ final class ListOptionsTest extends TestCase
         self::assertContains('alive', $names);
         self::assertContains('dead', $names);
     }
+
+    public function testListLatestOnlyReturnsLatestMetadataState(): void
+    {
+        $store = $this->js->createObjectStore(new ObjectStoreConfig(bucket: 'TEST_LIST_OPTS'));
+
+        $store->putString('alpha', 'v1');
+        $store->putString('alpha', 'v2');
+        $store->putString('beta', 'v1');
+        $store->delete('beta');
+
+        $objects = $store->list(showDeleted: true);
+        self::assertCount(2, $objects);
+
+        $latest = [];
+        foreach ($objects as $object) {
+            $latest[$object->name] = $object;
+        }
+
+        self::assertArrayHasKey('alpha', $latest);
+        self::assertArrayHasKey('beta', $latest);
+        self::assertFalse($latest['alpha']->deleted);
+        self::assertTrue($latest['beta']->deleted);
+        self::assertSame('alpha', $latest['alpha']->name);
+        self::assertSame('beta', $latest['beta']->name);
+    }
 }
