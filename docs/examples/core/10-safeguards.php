@@ -16,6 +16,7 @@ use Sofascore\Nats\Headers;
 use Sofascore\Nats\MaxPayloadException;
 use Sofascore\Nats\Message;
 use Sofascore\Nats\SlowConsumerException;
+use Sofascore\Nats\Subscription;
 
 // --- 1. Max payload enforcement ---
 // The client knows the server limit (sent in the INFO message at connect).
@@ -104,10 +105,13 @@ $conn->close();
 $slowConsumerDetected = false;
 
 $opts = new ConnectionOptions(
-    onError: function (Connection $conn, \Throwable $err) use (&$slowConsumerDetected) {
+    onError: function (Connection $conn, \Throwable $err, ?Subscription $sub = null) use (&$slowConsumerDetected) {
         if ($err instanceof SlowConsumerException) {
             $slowConsumerDetected = true;
             echo "Slow consumer detected: {$err->getMessage()}\n";
+            if ($sub !== null) {
+                echo "Affected subscription: {$sub->subject()} ({$sub->sid()})\n";
+            }
         }
     },
 );

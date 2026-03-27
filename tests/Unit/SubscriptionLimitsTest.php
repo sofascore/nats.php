@@ -193,9 +193,11 @@ final class SubscriptionLimitsTest extends TestCase
         $optionsProp->setValue($conn, $options);
 
         $errorHandlerProp = $ref->getProperty('onErrorHandler');
-        $errorHandlerProp->setValue($conn, function ($c, $err) use (&$reported): void {
+        $errorHandlerProp->setValue($conn, function ($c, $err, $sub = null) use (&$reported): void {
             $reported = true;
             self::assertInstanceOf(\Sofascore\Nats\SlowConsumerException::class, $err);
+            self::assertInstanceOf(Subscription::class, $sub);
+            self::assertSame('test.subject', $sub->subject());
         });
 
         $sub = $this->createSubscription($conn);

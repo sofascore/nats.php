@@ -581,7 +581,7 @@ final class Connection
      */
     public function rtt(): float
     {
-        $this->ensureConnected();
+        $this->ensureTransportConnected();
 
         $done = false;
         $id = 'p' . ++$this->pongCounter;
@@ -615,6 +615,11 @@ final class Connection
 
     public function connectedAddr(): string
     {
+        $remoteAddr = $this->socketAddr(true);
+        if ($remoteAddr !== null) {
+            return $remoteAddr;
+        }
+
         $url = $this->serverPool[$this->currentServerIndex] ?? '';
         $parsed = parse_url($url);
         if ($parsed === false) {
@@ -623,6 +628,30 @@ final class Connection
         $host = $parsed['host'] ?? '127.0.0.1';
         $port = $parsed['port'] ?? 4222;
         return "{$host}:{$port}";
+    }
+
+    public function localAddr(): ?string
+    {
+        return $this->socketAddr(false);
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public function tlsConnectionState(): ?array
+    {
+        $stream = $this->transport->getStreamResource();
+        if (!is_resource($stream)) {
+            return null;
+        }
+
+        $metadata = @stream_get_meta_data($stream);
+        if (!is_array($metadata)) {
+            return null;
+        }
+
+        $crypto = $metadata['crypto'] ?? null;
+        return is_array($crypto) ? $crypto : null;
     }
 
     public function lastError(): ?\Throwable
@@ -690,6 +719,9 @@ final class Connection
 
     /**
      * Dynamically set the error handler on the connection.
+     *
+     * Handler signature:
+     * `function(Connection $conn, \Throwable $err, ?Subscription $sub = null): void`
      */
     public function setErrorHandler(?\Closure $handler): void
     {
@@ -1188,10 +1220,7 @@ final class Connection
             "Slow consumer on subject '{$sub->subject()}': messages dropped"
         );
 
-        $handler = $this->onErrorHandler;
-        if ($handler !== null && !$this->callbacksSuppressed()) {
-            $handler($this, $this->lastError);
-        }
+        $this->dispatchError($this->lastError, $sub);
     }
 
     // --- Internal: I/O ---
@@ -1344,9 +1373,7 @@ final class Connection
         $this->log('warning', 'Server error: {error}', ['error' => $errMsg]);
         $this->lastError = new NatsException("Server error: {$errMsg}");
 
-        $handler = $this->onErrorHandler;
-        if ($handler !== null && !$this->callbacksSuppressed()) {
-            $handler($this, $this->lastError);
+        if ($this->dispatchError($this->lastError)) {
             return;
         }
 
@@ -1358,6 +1385,17 @@ final class Connection
         }
 
         throw new NatsException("Server error: {$errMsg}");
+    }
+
+    private function dispatchError(\Throwable $error, ?Subscription $subscription = null): bool
+    {
+        $handler = $this->onErrorHandler;
+        if ($handler === null || $this->callbacksSuppressed()) {
+            return false;
+        }
+
+        $handler($this, $error, $subscription);
+        return true;
     }
 
     private function handleInfo(ServerOp $op): void
@@ -1676,6 +1714,24 @@ final class Connection
             && $this->status !== ConnectionStatus::Reconnecting) {
             throw new NatsException('Not connected');
         }
+    }
+
+    private function ensureTransportConnected(): void
+    {
+        if ($this->status !== ConnectionStatus::Connected || !$this->transport->isConnected()) {
+            throw new NatsException('Not connected');
+        }
+    }
+
+    private function socketAddr(bool $remote): ?string
+    {
+        $stream = $this->transport->getStreamResource();
+        if (!is_resource($stream)) {
+            return null;
+        }
+
+        $addr = @stream_socket_get_name($stream, $remote);
+        return is_string($addr) && $addr !== '' ? $addr : null;
     }
 
     private function ensureCanPublish(): void

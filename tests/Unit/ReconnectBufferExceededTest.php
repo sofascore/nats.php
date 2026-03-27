@@ -8,6 +8,7 @@ use PHPUnit\Framework\TestCase;
 use Sofascore\Nats\Connection;
 use Sofascore\Nats\ConnectionOptions;
 use Sofascore\Nats\Enum\ConnectionStatus;
+use Sofascore\Nats\NatsException;
 use Sofascore\Nats\Protocol\Parser;
 use Sofascore\Nats\Protocol\Writer;
 use Sofascore\Nats\ReconnectBufferExceededException;
@@ -141,7 +142,7 @@ final class ReconnectBufferExceededTest extends TestCase
         self::assertEmpty($pongCallbacks->getValue($conn));
     }
 
-    public function testRttDoesNotLeakPongCallbackWhenWriteThrows(): void
+    public function testRttFailsFastWhileReconnectingAndDoesNotLeakPongCallback(): void
     {
         $conn = $this->createReconnectingConnection(1); // tiny buffer
 
@@ -150,14 +151,15 @@ final class ReconnectBufferExceededTest extends TestCase
 
         self::assertEmpty($pongCallbacks->getValue($conn));
 
+        $this->expectException(NatsException::class);
+        $this->expectExceptionMessage('Not connected');
+
         try {
             $conn->rtt();
-        } catch (ReconnectBufferExceededException) {
-            // expected
+        } finally {
+            // No pong callback should have been registered
+            self::assertEmpty($pongCallbacks->getValue($conn));
         }
-
-        // No pong callback should have been registered
-        self::assertEmpty($pongCallbacks->getValue($conn));
     }
 
     public function testBarrierDoesNotLeakPongCallbackWhenWriteThrows(): void

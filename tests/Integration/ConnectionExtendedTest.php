@@ -38,6 +38,7 @@ final class ConnectionExtendedTest extends TestCase
     public function testConnectedAddr(): void
     {
         $addr = $this->conn->connectedAddr();
+        $localAddr = $this->conn->localAddr();
 
         self::assertNotEmpty($addr);
         self::assertTrue(
@@ -45,6 +46,9 @@ final class ConnectionExtendedTest extends TestCase
             "Expected connectedAddr to contain '127.0.0.1' or 'localhost', got: {$addr}",
         );
         self::assertStringContainsString(':4222', $addr);
+        self::assertNotNull($localAddr);
+        self::assertStringContainsString(':', $localAddr);
+        self::assertNull($this->conn->tlsConnectionState());
     }
 
     public function testNumSubscriptions(): void
