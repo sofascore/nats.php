@@ -662,6 +662,7 @@ final class JetStreamContext
             allowDirect: true,
             metadata: $config->metadata,
             allowMsgTtl: $config->allowMsgTtl,
+            subjectDeleteMarkerTtl: $config->limitMarkerTtl !== null ? (int) $config->limitMarkerTtl : null,
         );
     }
 

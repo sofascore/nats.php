@@ -354,6 +354,8 @@ final class KeyValue implements KeyValueInterface
             sources: $info->config->sources,
             compression: $info->config->compression !== \Sofascore\Nats\Enum\StoreCompression::None,
             rePublish: $info->config->rePublish,
+            limitMarkerTtl: $info->config->subjectDeleteMarkerTtl !== null ? (float) $info->config->subjectDeleteMarkerTtl : null,
+            allowMsgTtl: $info->config->allowMsgTtl,
         );
 
         return new KeyValueStatus(
@@ -367,6 +369,7 @@ final class KeyValue implements KeyValueInterface
             config: $config,
             metadata: $info->config->metadata,
             streamInfo: $info,
+            limitMarkerTtl: $info->config->subjectDeleteMarkerTtl !== null ? (float) $info->config->subjectDeleteMarkerTtl : null,
         );
     }
 

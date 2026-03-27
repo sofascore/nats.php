@@ -6,7 +6,8 @@
  * Demonstrates: getRevision (specific revision), create with keyTtl (per-key TTL),
  * purge with ttl, listKeysFiltered (with patterns), watchFiltered (multiple keys),
  * bucket management (createOrUpdateKeyValue, keyValueStoreNames, keyValueStores),
- * purgeDeletes, KeyValueConfig advanced fields (mirror, sources, compression, allowMsgTtl).
+ * purgeDeletes, KeyValueConfig advanced fields (mirror, sources, compression,
+ * allowMsgTtl, limitMarkerTtl).
  */
 
 require_once __DIR__ . '/../../../vendor/autoload.php';
@@ -29,6 +30,7 @@ $kv = $js->createOrUpdateKeyValue(new KeyValueConfig(
     replicas: 1,
     compression: true,      // S2 compression
     allowMsgTtl: true,      // Allow per-key TTL
+    limitMarkerTtl: 600.0,  // Keep delete markers for 10 minutes
     metadata: ['env' => 'production'],
 ));
 
@@ -44,6 +46,7 @@ $kv = $js->createOrUpdateKeyValue(new KeyValueConfig(
     replicas: 1,
     compression: true,
     allowMsgTtl: true,
+    limitMarkerTtl: 600.0,
     metadata: ['env' => 'production'],
 ));
 echo "Bucket updated idempotently.\n";
@@ -184,6 +187,7 @@ echo "  History: {$status->history}\n";
 echo "  TTL: {$status->ttl}s\n";
 echo "  Backing store: {$status->backingStore}\n";
 echo "  Compressed: " . ($status->isCompressed ? 'yes' : 'no') . "\n";
+echo "  Limit marker TTL: " . ($status->limitMarkerTtl !== null ? "{$status->limitMarkerTtl}s" : 'none') . "\n";
 echo "  Metadata: " . json_encode($status->metadata) . "\n";
 
 // --- Cleanup ---
