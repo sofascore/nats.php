@@ -93,6 +93,12 @@ final class Connection
     ): self {
         $conn = new self();
         $conn->options = $options ?? new ConnectionOptions();
+        if ($conn->options->compression && $conn->options->transportFactory === null) {
+            throw new TransportConfigurationException(
+                'ConnectionOptions::compression requires a custom transport; '
+                . 'the built-in core transport does not implement connection compression'
+            );
+        }
         $conn->logger = $conn->options->logger;
         $conn->onDisconnectHandler = $conn->options->onDisconnect;
         $conn->onReconnectHandler = $conn->options->onReconnect;
@@ -100,8 +106,8 @@ final class Connection
         $conn->onErrorHandler = $conn->options->onError;
         $conn->parser = new Parser();
         $conn->writer = new Writer();
-        $conn->transportFactory = static fn (): TransportInterface => new TcpTransport();
-        $conn->transport = ($conn->transportFactory)();
+        $conn->transportFactory = $conn->options->transportFactory ?? static fn (): TransportInterface => new TcpTransport();
+        $conn->transport = $conn->newTransport();
 
         // Build server pool
         if (is_string($url)) {
@@ -801,7 +807,7 @@ final class Connection
             }
         }
 
-        if ($this->options->retryOnFailedConnect) {
+        if ($this->options->retryOnFailedConnect && !$lastError instanceof TransportConfigurationException) {
             $this->log('info', 'Initial connect failed, will retry in background (retryOnFailedConnect=true)');
             $this->status = ConnectionStatus::Reconnecting;
             $this->transport->close();
@@ -820,13 +826,16 @@ final class Connection
     {
         $parsed = parse_url($url);
         if ($parsed === false) {
-            throw new NatsException("Invalid server URL: {$url}");
+            throw new TransportConfigurationException("Invalid server URL: {$url}");
         }
         $host = $parsed['host'] ?? '127.0.0.1';
         $port = $parsed['port'] ?? 4222;
-        $scheme = $parsed['scheme'] ?? 'nats';
+        $scheme = strtolower($parsed['scheme'] ?? 'nats');
 
-        $useTls = $scheme === 'tls' || $scheme === 'nats+tls' || $this->options->tlsEnabled;
+        $useTls = $scheme === 'tls'
+            || $scheme === 'nats+tls'
+            || $scheme === 'wss'
+            || $this->options->tlsEnabled;
 
         $this->log('debug', 'Attempting to connect to {url}', ['url' => $url]);
 
@@ -837,36 +846,48 @@ final class Connection
             $tlsContext['peer_name'] = $host;
         }
 
-        // Resolve hostname to IPs and try each one (matches nats.go createConn behavior)
-        $resolvedIps = $this->resolveHost($host);
-        $lastError = null;
-
-        // Divide timeout equally across resolved IPs so total time per server
-        // never exceeds the configured timeout (matches nats.go behavior)
-        $perIpTimeout = count($resolvedIps) > 1
-            ? $this->options->timeout / count($resolvedIps)
-            : $this->options->timeout;
-
-        foreach ($resolvedIps as $ip) {
-            $addressHost = filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) ? "[{$ip}]" : $ip;
-            $address = "tcp://{$addressHost}:{$port}";
-
-            try {
-                $this->transport->connect($address, $perIpTimeout, $tlsContext);
-                $lastError = null;
-                break;
-            } catch (NatsException $e) {
-                $lastError = $e;
-                $this->log('debug', 'Failed to connect to {address}: {error}', [
-                    'address' => $address,
-                    'error' => $e->getMessage(),
-                ]);
-                continue;
+        if ($this->options->transportFactory !== null) {
+            $this->transport->connect($url, $this->options->timeout, $tlsContext);
+        } else {
+            if (!$this->supportsBuiltInTransportScheme($scheme)) {
+                throw new TransportConfigurationException(
+                    "Unsupported server URL scheme '{$scheme}': built-in core transport supports only "
+                    . 'nats://, tls://, and nats+tls:// URLs; use ConnectionOptions::transportFactory '
+                    . 'for custom transports such as ws:// or wss:// deployments'
+                );
             }
-        }
 
-        if ($lastError !== null) {
-            throw $lastError;
+            // Resolve hostname to IPs and try each one (matches nats.go createConn behavior)
+            $resolvedIps = $this->resolveHost($host);
+            $lastError = null;
+
+            // Divide timeout equally across resolved IPs so total time per server
+            // never exceeds the configured timeout (matches nats.go behavior)
+            $perIpTimeout = count($resolvedIps) > 1
+                ? $this->options->timeout / count($resolvedIps)
+                : $this->options->timeout;
+
+            foreach ($resolvedIps as $ip) {
+                $addressHost = filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) ? "[{$ip}]" : $ip;
+                $address = "tcp://{$addressHost}:{$port}";
+
+                try {
+                    $this->transport->connect($address, $perIpTimeout, $tlsContext);
+                    $lastError = null;
+                    break;
+                } catch (NatsException $e) {
+                    $lastError = $e;
+                    $this->log('debug', 'Failed to connect to {address}: {error}', [
+                        'address' => $address,
+                        'error' => $e->getMessage(),
+                    ]);
+                    continue;
+                }
+            }
+
+            if ($lastError !== null) {
+                throw $lastError;
+            }
         }
 
         $this->transport->setTimeout($this->options->timeout);
@@ -1465,7 +1486,7 @@ final class Connection
             $url = $this->serverPool[$idx];
 
             try {
-                $this->transport = ($this->transportFactory)();
+                $this->transport = $this->newTransport();
                 $this->connectToServer($url);
                 $this->currentServerIndex = $idx;
                 $this->status = ConnectionStatus::Connected;
@@ -1596,7 +1617,7 @@ final class Connection
                 $url = $this->serverPool[$idx];
 
                 try {
-                    $this->transport = ($this->transportFactory)();
+                    $this->transport = $this->newTransport();
                     $this->connectToServer($url);
                     $this->currentServerIndex = $idx;
                     $this->status = ConnectionStatus::Connected;
@@ -1705,6 +1726,24 @@ final class Connection
         if ($this->status !== ConnectionStatus::Connected || !$this->transport->isConnected()) {
             throw new NatsException('Not connected');
         }
+    }
+
+    private function supportsBuiltInTransportScheme(string $scheme): bool
+    {
+        return $scheme === 'nats' || $scheme === 'tls' || $scheme === 'nats+tls';
+    }
+
+    private function newTransport(): TransportInterface
+    {
+        /** @var mixed $transport */
+        $transport = ($this->transportFactory)();
+        if (!$transport instanceof TransportInterface) {
+            throw new TransportConfigurationException(
+                'ConnectionOptions::transportFactory must return a TransportInterface instance'
+            );
+        }
+
+        return $transport;
     }
 
     private function socketAddr(bool $remote): ?string

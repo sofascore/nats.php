@@ -7,6 +7,7 @@ namespace Sofascore\Nats\Tests\Unit;
 require_once __DIR__ . '/PsrLoggerStub.php';
 
 use Sofascore\Nats\ConnectionOptions;
+use Sofascore\Nats\Transport\TransportInterface;
 use PHPUnit\Framework\TestCase;
 
 final class ConnectionOptionsTest extends TestCase
@@ -150,7 +151,33 @@ final class ConnectionOptionsTest extends TestCase
         self::assertFalse($opts->ignoreDiscoveredServers);
         self::assertSame('_INBOX', $opts->inboxPrefix);
         self::assertFalse($opts->compression);
+        self::assertNull($opts->transportFactory);
         self::assertNull($opts->logger);
+    }
+
+    public function testTransportFactoryWither(): void
+    {
+        $opts = new ConnectionOptions();
+        $factory = function (): TransportInterface {
+            return new class implements TransportInterface {
+                public function connect(string $address, float $timeout, ?array $tlsContext = null): void {}
+                public function read(int $length): string { return ''; }
+                public function readLine(): string { return ''; }
+                public function write(string $data): int { return strlen($data); }
+                public function close(): void {}
+                public function isConnected(): bool { return false; }
+                public function setBlocking(bool $blocking): void {}
+                public function setTimeout(float $seconds): void {}
+                public function waitForData(float $timeout): bool { return false; }
+                public function upgradeTls(array $tlsContext): void {}
+                public function getStreamResource(): mixed { return null; }
+            };
+        };
+
+        $opts2 = $opts->withTransportFactory($factory);
+
+        self::assertNull($opts->transportFactory);
+        self::assertSame($factory, $opts2->transportFactory);
     }
 
     public function testWithersReturnNewInstance(): void

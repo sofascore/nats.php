@@ -87,6 +87,8 @@ final readonly class ConnectionOptions
 
         // Logging
         ?object $logger = null,
+        /** @var (\Closure(): \Sofascore\Nats\Transport\TransportInterface)|null */
+        public ?\Closure $transportFactory = null,
     ) {
         /** @var mixed $server */
         foreach ($servers as $i => $server) {
@@ -359,6 +361,12 @@ final readonly class ConnectionOptions
     public function withUseOldRequestStyle(bool $enabled = true): self
     {
         return clone($this, ['useOldRequestStyle' => $enabled]);
+    }
+
+    /** @param \Closure(): \Sofascore\Nats\Transport\TransportInterface $factory */
+    public function withTransportFactory(\Closure $factory): self
+    {
+        return clone($this, ['transportFactory' => $factory]);
     }
 
     // --- Computed ---

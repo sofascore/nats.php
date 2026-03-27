@@ -43,3 +43,6 @@ $conn = Connection::connect('nats://localhost:4222', $options);
 echo "Max payload: {$conn->maxPayload()} bytes\n";
 echo "Headers supported: " . ($conn->headersSupported() ? 'yes' : 'no') . "\n";
 $conn->close();
+
+// Built-in core transport supports nats://, tls://, and nats+tls:// URLs.
+// Use ConnectionOptions(transportFactory: ...) for ws:// / wss:// or other custom transports.
