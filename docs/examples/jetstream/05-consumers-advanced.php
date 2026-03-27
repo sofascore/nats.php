@@ -3,10 +3,11 @@
 /**
  * Advanced consumer operations.
  *
- * Demonstrates: pauseConsumer/resumeConsumer, push consumer CRUD
- * (createPushConsumer, pushConsumer), ConsumerConfig advanced fields
- * (sampleFrequency, backOff, maxRequestExpires, headersOnly),
- * fetchBytes, consumer info details (numPending, numAckPending, cluster info).
+ * Demonstrates: pauseConsumer/resumeConsumer, push consumer CRUD/consume
+ * (createPushConsumer, pushConsumer, consume, checkHeartbeat),
+ * ConsumerConfig advanced fields (sampleFrequency, backOff,
+ * maxRequestExpires, headersOnly), fetchBytes, consumer info details
+ * (numPending, numAckPending, cluster info).
  */
 
 require_once __DIR__ . '/../../../vendor/autoload.php';
@@ -16,6 +17,8 @@ use Sofascore\Nats\Enum\AckPolicy;
 use Sofascore\Nats\Enum\DeliveryPolicy;
 use Sofascore\Nats\JetStream\Consumer\ConsumerConfig;
 use Sofascore\Nats\JetStream\Consumer\FetchOptions;
+use Sofascore\Nats\JetStream\Consumer\PushConsumeOptions;
+use Sofascore\Nats\JetStream\Message\JetStreamMessage;
 use Sofascore\Nats\JetStream\Stream\StreamConfig;
 
 $conn = Connection::connect();
@@ -173,14 +176,51 @@ $updatedPush = $js->createOrUpdatePushConsumer('TASKS', new ConsumerConfig(
 
 echo "Push consumer updated.\n";
 
-// --- 7. List consumers ---
+// --- 7. Push consume() with heartbeat checks ---
+
+$pushProcessed = 0;
+$pushCtx = null;
+$pushCtx = $updatedPush->consume(
+    function (JetStreamMessage $msg) use (&$pushProcessed, &$pushCtx): void {
+        echo "Push callback: {$msg->data()}\n";
+        $msg->ack();
+        $pushProcessed++;
+
+        if ($pushProcessed >= 3) {
+            $pushCtx->stop();
+        }
+    },
+    new PushConsumeOptions(
+        errorHandler: function (\Throwable $e): void {
+            echo "Push error: {$e->getMessage()}\n";
+        },
+    ),
+);
+
+// Push consume() subscribes immediately; your event loop drives delivery.
+// Flow-control is answered automatically. checkHeartbeat() is useful when
+// idleHeartbeat is configured and the connection loop is otherwise idle.
+$deadline = microtime(true) + 3.0;
+while (!$pushCtx->isStopped() && microtime(true) < $deadline) {
+    $conn->process(0.1);
+    $updatedPush->checkHeartbeat();
+}
+
+if (!$pushCtx->isStopped()) {
+    $pushCtx->stop();
+}
+
+echo "Push consumer status: {$updatedPush->status()->value}\n";
+echo "Push consumer last error: " . ($pushCtx->lastError()?->getMessage() ?? 'none') . "\n";
+
+// --- 8. List consumers ---
 
 echo "Consumers on TASKS stream:\n";
 foreach ($stream->consumerNames() as $name) {
     echo "  - {$name}\n";
 }
 
-// --- 8. Fetch remaining messages and ACK details ---
+// --- 9. Fetch remaining messages and ACK details ---
 
 $batch = $consumer->fetch(5, new FetchOptions(timeout: 2.0));
 foreach ($batch as $msg) {
