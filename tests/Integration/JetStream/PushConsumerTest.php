@@ -192,11 +192,17 @@ final class PushConsumerTest extends TestCase
             $this->conn->process(0.1);
         }
 
-        // The consumer may or may not get the 409 depending on server behavior.
-        // At minimum, verify that if it did arrive, it was handled correctly.
+        // The consumer may or may not receive a 409 depending on server timing.
+        // Assert both paths explicitly so PHPUnit never flags this as risky.
         if ($consumer->status() === PushConsumerStatus::Error) {
             self::assertNotEmpty($errors);
             self::assertInstanceOf(PushConsumerException::class, $errors[0]);
+        } else {
+            // Server didn't deliver the 409 in time — still a valid outcome
+            self::assertContains($consumer->status(), [
+                PushConsumerStatus::Active,
+                PushConsumerStatus::Stalled,
+            ]);
         }
 
         $consumer->unsubscribe();
