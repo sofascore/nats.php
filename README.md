@@ -144,6 +144,19 @@ $conn = Connection::connect('nats://localhost:4222', new ConnectionOptions(
 ));
 ```
 
+The built-in core transport only supports `nats://`, `tls://`, and `nats+tls://` URLs.
+For `ws://` / `wss://` deployments or other custom dial behavior, pass a custom
+`ConnectionOptions(transportFactory: ...)`.
+
+`transportFactory` is a low-level hook. The factory must return a fresh
+`TransportInterface` instance because the client recreates transports on reconnect.
+When a custom transport is used, `TransportInterface::connect()` receives the original
+server URL (for example `ws://gateway.example.test/nats`) rather than a resolved
+`tcp://host:port` address, so the transport owns scheme/path-specific dialing.
+If the transport exposes a live stream resource from `getStreamResource()`, helpers such
+as `connectedAddr()`, `localAddr()`, and `tlsConnectionState()` can surface runtime
+socket metadata; otherwise those helpers return `null`.
+
 ### Core — Pub/Sub
 
 ```php

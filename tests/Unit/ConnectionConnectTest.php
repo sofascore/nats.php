@@ -11,6 +11,7 @@ use Sofascore\Nats\NatsException;
 use Sofascore\Nats\Protocol\Parser;
 use Sofascore\Nats\Protocol\Writer;
 use Sofascore\Nats\Transport\TransportInterface;
+use Sofascore\Nats\TransportConfigurationException;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -189,6 +190,60 @@ final class ConnectionConnectTest extends TestCase
         $ref->getProperty('status')->setValue($conn, ConnectionStatus::Connected);
 
         self::assertNull($conn->connectedAddr());
+    }
+
+    public function testStaticConnectUsesCustomTransportFactoryWithOriginalUrl(): void
+    {
+        $transport = new MockTransport();
+
+        $conn = Connection::connect(
+            'ws://gateway.example.test/nats',
+            new ConnectionOptions(
+                transportFactory: static fn (): TransportInterface => $transport,
+            ),
+        );
+
+        self::assertSame(['ws://gateway.example.test/nats'], $transport->connectAddresses);
+
+        $conn->close();
+    }
+
+    public function testConnectRejectsWebsocketUrlsWithoutCustomTransport(): void
+    {
+        $this->expectException(NatsException::class);
+        $this->expectExceptionMessage("Unsupported server URL scheme 'ws'");
+
+        Connection::connect('ws://gateway.example.test/nats');
+    }
+
+    public function testDoConnectDoesNotEnterRetryLoopForUnsupportedTransportConfig(): void
+    {
+        $transport = new MockTransport();
+        $conn = $this->createConnectionWithTransport(
+            $transport,
+            new ConnectionOptions(retryOnFailedConnect: true),
+        );
+
+        $ref = new \ReflectionClass(Connection::class);
+        $ref->getProperty('serverPool')->setValue($conn, ['ws://gateway.example.test/nats']);
+
+        $this->expectException(NatsException::class);
+        $this->expectExceptionMessage("Unsupported server URL scheme 'ws'");
+
+        $ref->getMethod('doConnect')->invoke($conn);
+    }
+
+    public function testConnectRejectsInvalidCustomTransportFactoryReturnValue(): void
+    {
+        $this->expectException(TransportConfigurationException::class);
+        $this->expectExceptionMessage('ConnectionOptions::transportFactory must return a TransportInterface instance');
+
+        Connection::connect(
+            'nats://127.0.0.1:4222',
+            new ConnectionOptions(
+                transportFactory: static fn (): object => new \stdClass(),
+            ),
+        );
     }
 
     public function testTimeoutDividedAcrossResolvedIps(): void

@@ -72,7 +72,6 @@ final readonly class ConnectionOptions
         public bool $pedantic = false,
         public bool $ignoreDiscoveredServers = false,
         public string $inboxPrefix = '_INBOX',
-        public bool $compression = false,
 
         // Additional options
         public bool $noCallbacksAfterClientClose = false,
@@ -87,6 +86,8 @@ final readonly class ConnectionOptions
 
         // Logging
         ?object $logger = null,
+        /** @var (\Closure(): \Sofascore\Nats\Transport\TransportInterface)|null */
+        public ?\Closure $transportFactory = null,
     ) {
         /** @var mixed $server */
         foreach ($servers as $i => $server) {
@@ -318,11 +319,6 @@ final readonly class ConnectionOptions
         return clone($this, ['inboxPrefix' => $prefix]);
     }
 
-    public function withCompression(bool $enabled = true): self
-    {
-        return clone($this, ['compression' => $enabled]);
-    }
-
     /** Sets a PSR-3 logger for connection lifecycle events. */
     public function withLogger(object $logger): self
     {
@@ -359,6 +355,12 @@ final readonly class ConnectionOptions
     public function withUseOldRequestStyle(bool $enabled = true): self
     {
         return clone($this, ['useOldRequestStyle' => $enabled]);
+    }
+
+    /** @param \Closure(): \Sofascore\Nats\Transport\TransportInterface $factory */
+    public function withTransportFactory(\Closure $factory): self
+    {
+        return clone($this, ['transportFactory' => $factory]);
     }
 
     // --- Computed ---
