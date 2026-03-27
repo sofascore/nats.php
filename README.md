@@ -289,7 +289,6 @@ foreach ($batch as $msg) {
     echo $msg->data() . "\n";
     $msg->ack();
 }
-$messages = $batch->all(); // list<JetStreamMessage>
 
 // Single message
 $msg = $consumer->next(timeout: 2.0);
@@ -301,9 +300,10 @@ foreach ($msgs as $msg) {
     $msg->ack();
 }
 
-// Queue-like polling without exceptions on timeout
-$poller = $consumer->messages(new ConsumeOptions(maxMessages: 10, expires: 1.0));
-while (($msg = $poller->tryNext(1.0)) !== null) {
+// Poll one message at a time without handling TimeoutException yourself.
+// If you raise maxMessages above 1, the context buffers a fetched batch.
+$poller = $consumer->messages(new ConsumeOptions(maxMessages: 1, expires: 1.0));
+while (($msg = $poller->tryNext()) !== null) {
     $msg->ack();
 }
 
@@ -314,8 +314,8 @@ If you are migrating from older queue-style snippets, the modern equivalents are
 
 | Older pattern | Current API |
 |---|---|
-| `create()->getQueue()->fetchAll(100)` | `fetch(100, ...)->all()` |
-| `getQueue()->next()` | `messages(...)->tryNext()` or `next()` |
+| `create()->getQueue()->fetchAll(100)` | `fetch(100, ...)` and iterate the batch |
+| `getQueue()->next()` | `next()` or `messages(new ConsumeOptions(maxMessages: 1, ...))->tryNext()` |
 | `handle(...)` | `consume(...)->run()` |
 
 ### JetStream — Publish Options

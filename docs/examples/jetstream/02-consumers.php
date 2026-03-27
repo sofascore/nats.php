@@ -50,8 +50,6 @@ foreach ($batch as $msg) {
     echo "Fetch: {$msg->data()}\n";
     $msg->ack();
 }
-$messages = $batch->all();
-echo "Fetch as list: " . count($messages) . "\n";
 echo "Batch error: " . ($batch->error() ? $batch->error()->getMessage() : 'none') . "\n";
 
 // --- 3. FetchNoWait - only available messages ---
@@ -95,13 +93,14 @@ foreach ($msgs as $msg) {
 
 echo "Messages context closed: " . ($msgs->isClosed() ? 'yes' : 'no') . "\n";
 
-// Queue-style polling without exceptions on timeout:
+// Poll one message at a time without exception-driven timeout handling.
+// If maxMessages is greater than 1, tryNext() drains an internal buffer first.
 $poller = $consumer->messages(new ConsumeOptions(
-    maxMessages: 2,
+    maxMessages: 1,
     expires: 0.2,
 ));
 
-while (($msg = $poller->tryNext(0.2)) !== null) {
+while (($msg = $poller->tryNext()) !== null) {
     echo "TryNext: {$msg->data()}\n";
     $msg->ack();
 }
