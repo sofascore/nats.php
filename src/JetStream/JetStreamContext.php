@@ -204,8 +204,12 @@ final class JetStreamContext
 
     public function createPushConsumer(string $stream, ConsumerConfig $config): PushConsumerInterface
     {
+        $consumerName = $config->name ?? $config->durable ?? null;
+        $op = $consumerName !== null
+            ? "CONSUMER.CREATE.{$stream}.{$consumerName}"
+            : "CONSUMER.CREATE.{$stream}";
         $data = $this->apiRequest(
-            "CONSUMER.CREATE.{$stream}",
+            $op,
             ['stream_name' => $stream, 'config' => $config->toArray()],
         );
         return new PushConsumer($this, $stream, ConsumerConfig::fromArray(T::stringKeyArray($data['config'] ?? [])));
@@ -223,8 +227,9 @@ final class JetStreamContext
 
     public function createOrUpdatePushConsumer(string $stream, ConsumerConfig $config): PushConsumerInterface
     {
-        $op = $config->name !== null
-            ? "CONSUMER.CREATE.{$stream}.{$config->name}"
+        $consumerName = $config->name ?? $config->durable ?? null;
+        $op = $consumerName !== null
+            ? "CONSUMER.CREATE.{$stream}.{$consumerName}"
             : "CONSUMER.CREATE.{$stream}";
         $data = $this->apiRequest($op, ['stream_name' => $stream, 'config' => $config->toArray()]);
         return new PushConsumer($this, $stream, ConsumerConfig::fromArray(T::stringKeyArray($data['config'] ?? [])));
