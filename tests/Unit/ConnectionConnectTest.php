@@ -11,7 +11,6 @@ use Sofascore\Nats\NatsException;
 use Sofascore\Nats\Protocol\Parser;
 use Sofascore\Nats\Protocol\Writer;
 use Sofascore\Nats\Transport\TransportInterface;
-use Sofascore\Nats\TransportConfigurationException;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -206,17 +205,6 @@ final class ConnectionConnectTest extends TestCase
         self::assertSame(['ws://gateway.example.test/nats'], $transport->connectAddresses);
 
         $conn->close();
-    }
-
-    public function testConnectRejectsCompressionWithoutCustomTransport(): void
-    {
-        $this->expectException(TransportConfigurationException::class);
-        $this->expectExceptionMessage('ConnectionOptions::compression requires a custom transport');
-
-        Connection::connect(
-            'nats://127.0.0.1:4222',
-            new ConnectionOptions(compression: true),
-        );
     }
 
     public function testConnectRejectsWebsocketUrlsWithoutCustomTransport(): void

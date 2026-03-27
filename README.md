@@ -146,9 +146,7 @@ $conn = Connection::connect('nats://localhost:4222', new ConnectionOptions(
 
 The built-in core transport only supports `nats://`, `tls://`, and `nats+tls://` URLs.
 For `ws://` / `wss://` deployments or other custom dial behavior, pass a custom
-`ConnectionOptions(transportFactory: ...)`. The built-in core transport also rejects
-`ConnectionOptions::compression`; that flag is only meaningful if a custom transport
-implements it explicitly.
+`ConnectionOptions(transportFactory: ...)`.
 
 ### Core — Pub/Sub
 

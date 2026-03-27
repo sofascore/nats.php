@@ -150,7 +150,6 @@ final class ConnectionOptionsTest extends TestCase
         self::assertFalse($opts->pedantic);
         self::assertFalse($opts->ignoreDiscoveredServers);
         self::assertSame('_INBOX', $opts->inboxPrefix);
-        self::assertFalse($opts->compression);
         self::assertNull($opts->transportFactory);
         self::assertNull($opts->logger);
     }

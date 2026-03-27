@@ -93,12 +93,6 @@ final class Connection
     ): self {
         $conn = new self();
         $conn->options = $options ?? new ConnectionOptions();
-        if ($conn->options->compression && $conn->options->transportFactory === null) {
-            throw new TransportConfigurationException(
-                'ConnectionOptions::compression requires a custom transport; '
-                . 'the built-in core transport does not implement connection compression'
-            );
-        }
         $conn->logger = $conn->options->logger;
         $conn->onDisconnectHandler = $conn->options->onDisconnect;
         $conn->onReconnectHandler = $conn->options->onReconnect;

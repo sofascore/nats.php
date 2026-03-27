@@ -72,7 +72,6 @@ final readonly class ConnectionOptions
         public bool $pedantic = false,
         public bool $ignoreDiscoveredServers = false,
         public string $inboxPrefix = '_INBOX',
-        public bool $compression = false,
 
         // Additional options
         public bool $noCallbacksAfterClientClose = false,
@@ -318,11 +317,6 @@ final readonly class ConnectionOptions
     public function withInboxPrefix(string $prefix): self
     {
         return clone($this, ['inboxPrefix' => $prefix]);
-    }
-
-    public function withCompression(bool $enabled = true): self
-    {
-        return clone($this, ['compression' => $enabled]);
     }
 
     /** Sets a PSR-3 logger for connection lifecycle events. */
