@@ -71,7 +71,7 @@ readonly class ConsumerConfig
             $data['backoff'] = array_map(fn(float $s) => (int) ($s * 1_000_000_000), $this->backOff);
         }
         if ($this->replicas > 0) { $data['num_replicas'] = $this->replicas; }
-        $data['max_waiting'] = $this->maxWaiting;
+        if ($this->deliverSubject === null) { $data['max_waiting'] = $this->maxWaiting; }
         $data['max_ack_pending'] = $this->maxAckPending;
         if ($this->headersOnly) { $data['headers_only'] = true; }
         if ($this->metadata !== []) { $data['metadata'] = $this->metadata; }

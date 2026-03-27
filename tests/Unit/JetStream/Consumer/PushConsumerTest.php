@@ -478,6 +478,54 @@ final class PushConsumerTest extends TestCase
         self::assertInstanceOf(PushConsumerException::class, $errors[0]);
     }
 
+    public function testCheckHeartbeatNoOpWhenClosed(): void
+    {
+        $consumer = $this->createConsumer(idleHeartbeat: 0.001);
+
+        $errors = [];
+        $this->activateConsumer(
+            $consumer,
+            function (JetStreamMessage $msg): void {},
+            new PushConsumeOptions(
+                errorHandler: function (\Throwable $e) use (&$errors): void {
+                    $errors[] = $e;
+                },
+            ),
+        );
+
+        $consumer->unsubscribe();
+        self::assertSame(PushConsumerStatus::Closed, $consumer->status());
+
+        // Force expired heartbeat and call checkHeartbeat — should no-op
+        $ref = new \ReflectionClass(PushConsumer::class);
+        $ref->getProperty('lastHeartbeatTime')->setValue($consumer, microtime(true) - 999.0);
+
+        $consumer->checkHeartbeat();
+
+        // Status must remain Closed, not regress to Stalled
+        self::assertSame(PushConsumerStatus::Closed, $consumer->status());
+        self::assertCount(0, $errors);
+    }
+
+    public function testCheckHeartbeatNoOpWhenError(): void
+    {
+        $consumer = $this->createConsumer(idleHeartbeat: 0.001);
+
+        $this->activateConsumer(
+            $consumer,
+            function (JetStreamMessage $msg): void {},
+        );
+
+        // Force Error state
+        $ref = new \ReflectionClass(PushConsumer::class);
+        $ref->getProperty('status')->setValue($consumer, PushConsumerStatus::Error);
+        $ref->getProperty('lastHeartbeatTime')->setValue($consumer, microtime(true) - 999.0);
+
+        $consumer->checkHeartbeat();
+
+        self::assertSame(PushConsumerStatus::Error, $consumer->status());
+    }
+
     public function testConsumeRollsBackStateOnSubscribeFailure(): void
     {
         // Stub connection is not connected, so subscribe() will throw

@@ -131,6 +131,9 @@ final class PushConsumer implements PushConsumerInterface
 
     public function checkHeartbeat(): void
     {
+        if ($this->status !== PushConsumerStatus::Active && $this->status !== PushConsumerStatus::Stalled) {
+            return;
+        }
         $this->checkHeartbeatTimeout();
     }
 
