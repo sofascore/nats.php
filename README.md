@@ -94,7 +94,7 @@ For full runnable scripts grouped by feature, see the example files below. That 
 | [02-consumers.php](docs/examples/jetstream/02-consumers.php) | Pull fetch/next/messages/consume, ConsumeContext, ordered, ACK variants |
 | [03-publish.php](docs/examples/jetstream/03-publish.php) | Deduplication, optimistic concurrency, async publish |
 | [04-streams-advanced.php](docs/examples/jetstream/04-streams-advanced.php) | CreateOrUpdate, streamNameBySubject, secureDelete, mirrors, sources, subject transforms |
-| [05-consumers-advanced.php](docs/examples/jetstream/05-consumers-advanced.php) | Pause/resume, push consumers, backoff, fetchBytes, headersOnly |
+| [05-consumers-advanced.php](docs/examples/jetstream/05-consumers-advanced.php) | Pause/resume, push consumer CRUD/consume, backoff, fetchBytes, headersOnly |
 | [06-publish-advanced.php](docs/examples/jetstream/06-publish-advanced.php) | Async lifecycle, msgTtl, expectLastMsgId, stallWait, publishMessage |
 | [07-direct-get.php](docs/examples/jetstream/07-direct-get.php) | Direct message access, account info, fast lookups |
 
@@ -333,6 +333,49 @@ If you are migrating from older queue-style snippets, the modern equivalents are
 | `create()->getQueue()->fetchAll(100)` | `fetch(100, ...)` and iterate the batch |
 | `getQueue()->next()` | `next()` or `messages(new ConsumeOptions(maxMessages: 1, ...))->tryNext()` |
 | `handle(...)` | `consume(...)->run()` |
+
+### JetStream - Push Consumers
+
+```php
+use Sofascore\Nats\JetStream\Consumer\{ConsumerConfig, PushConsumeOptions};
+use Sofascore\Nats\JetStream\Message\JetStreamMessage;
+use Sofascore\Nats\Enum\AckPolicy;
+
+$push = $js->createPushConsumer('ORDERS', new ConsumerConfig(
+    durable: 'push-orders',
+    deliverSubject: 'deliver.orders',
+    ackPolicy: AckPolicy::Explicit,
+    flowControl: true,
+    idleHeartbeat: 5.0,
+));
+
+$received = 0;
+$ctx = null;
+$ctx = $push->consume(
+    function (JetStreamMessage $msg) use (&$received, &$ctx): void {
+        $msg->ack();
+        $received++;
+        if ($received >= 3) {
+            $ctx->stop();
+        }
+    },
+    new PushConsumeOptions(
+        errorHandler: function (\Throwable $e): void {
+            echo "Push error: {$e->getMessage()}\n";
+        },
+    ),
+);
+
+while (!$ctx->isStopped()) {
+    $conn->process(0.1);
+    $push->checkHeartbeat(); // Useful when idleHeartbeat is configured
+}
+```
+
+Push `consume()` subscribes immediately and runs from your application's
+connection loop. Flow-control replies are handled automatically. If you enable
+`idleHeartbeat`, call `checkHeartbeat()` alongside `process()` so total silence
+is surfaced as a consumer error.
 
 ### JetStream — Publish Options
 
