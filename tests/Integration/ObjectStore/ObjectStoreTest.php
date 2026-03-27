@@ -269,12 +269,17 @@ final class ObjectStoreTest extends TestCase
     public function testGetFile(): void
     {
         $store = $this->createStore();
-        $store->putBytes('download.txt', 'file content');
+        $content = str_repeat('chunked file content-', 300);
+        $store->putBytes('download.txt', $content);
 
         $tmpFile = tempnam(sys_get_temp_dir(), 'nats-test-');
-        $store->getFile('download.txt', $tmpFile);
+        self::assertNotFalse($tmpFile);
 
-        self::assertSame('file content', file_get_contents($tmpFile));
-        unlink($tmpFile);
+        try {
+            $store->getFile('download.txt', $tmpFile);
+            self::assertSame($content, file_get_contents($tmpFile));
+        } finally {
+            unlink($tmpFile);
+        }
     }
 }

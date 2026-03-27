@@ -39,7 +39,7 @@ interface ObjectStoreInterface
     public function addBucketLink(string $name, ObjectStoreInterface $targetStore): ObjectInfo;
 
     /** @return list<ObjectInfo> */
-    public function list(bool $showDeleted = false): array;
+    public function list(bool $showDeleted = false, bool $includeHistory = false): array;
 
     public function watch(WatchOptions ...$opts): ObjectWatcher;
 

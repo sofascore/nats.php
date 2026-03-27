@@ -1,9 +1,9 @@
-<?php
+<?php declare(strict_types=1);
 
 /**
  * Object Store - storing large objects (files) in NATS.
  *
- * Objects are automatically split into chunks and reassembled when reading.
+ * Objects are automatically split into chunks and read back lazily.
  * Supports: put (bytes/string/file/stream), get, delete, metadata.
  */
 
@@ -61,7 +61,11 @@ echo "Stored with meta: {$info->name}, desc={$info->description}\n";
 
 $result = $store->get('config.json');
 echo "Object info: name={$result->info()->name}, size={$result->info()->size}\n";
-echo "Content: {$result->readAll()}\n";
+
+while (($chunk = $result->read(8)) !== '') {
+    echo "Chunk: {$chunk}\n";
+}
+
 $result->close();
 
 // --- Get bytes/string ---
@@ -74,6 +78,7 @@ echo "String: {$text}\n";
 
 // --- Get to file ---
 
+// Streams object contents directly to disk instead of buffering the whole object first.
 // $store->getFile('report-2024.pdf', '/tmp/report.pdf');
 
 // --- Update metadata ---
@@ -90,6 +95,9 @@ $objects = $store->list();
 foreach ($objects as $obj) {
     echo "Object: {$obj->name}, size={$obj->size}, chunks={$obj->chunks}\n";
 }
+
+// Full metadata history remains available explicitly when you need it.
+// $history = $store->list(includeHistory: true);
 
 // --- Status ---
 

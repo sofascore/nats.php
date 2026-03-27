@@ -4,21 +4,27 @@ declare(strict_types=1);
 
 namespace Sofascore\Nats\ObjectStore;
 
+use Sofascore\Nats\Enum\AckPolicy;
 use Sofascore\Nats\Enum\DeliveryPolicy;
-use Sofascore\Nats\Internal\TypeCast as T;
+use Sofascore\Nats\Enum\ReplayPolicy;
 use Sofascore\Nats\Enum\StoreCompression;
 use Sofascore\Nats\Headers;
 use Sofascore\Nats\Inbox;
 use Sofascore\Nats\JetStream\Consumer\ConsumerConfig;
+use Sofascore\Nats\JetStream\Consumer\FetchOptions;
 use Sofascore\Nats\JetStream\JetStreamContext;
-use Sofascore\Nats\JetStream\Message\JetStreamMsg;
 use Sofascore\Nats\JetStream\Stream\StreamConfig;
+use Sofascore\Nats\Internal\TypeCast as T;
 use Sofascore\Nats\KeyValue\WatchOptions;
 use Sofascore\Nats\Message;
 use Sofascore\Nats\NatsException;
 
 final class ObjectStore implements ObjectStoreInterface
 {
+    private const INTERNAL_CONSUMER_INACTIVE_THRESHOLD = 30.0;
+    private const OBJECT_CHUNK_FETCH_BATCH = 32;
+    private const META_FETCH_BATCH = 256;
+
     private int $chunkSize;
 
     /** @internal */
@@ -171,44 +177,57 @@ final class ObjectStore implements ObjectStoreInterface
      */
     public function get(string $name): ObjectResult
     {
-        $info = $this->getObjectInfo($name);
-        if ($info->deleted) {
-            throw new NatsException("Object deleted: {$name}");
-        }
+        $info = $this->resolveReadableObjectInfo($name);
+        $consumerName = $this->createInternalConsumerName('OBJR');
+        $consumer = $this->js->createConsumer(
+            $this->streamName(),
+            new ConsumerConfig(
+                name: $consumerName,
+                deliverPolicy: DeliveryPolicy::All,
+                ackPolicy: AckPolicy::None,
+                filterSubject: $this->chunkSubject($info->nuid),
+                inactiveThreshold: self::INTERNAL_CONSUMER_INACTIVE_THRESHOLD,
+                replayPolicy: ReplayPolicy::Instant,
+                memoryStorage: true,
+            ),
+        );
 
-        // If this is a link to another object, resolve it
-        if ($info->isLink() && $info->link !== null && $info->link->name !== '') {
-            if ($info->link->bucket !== '' && $info->link->bucket !== $this->bucketName) {
-                // Cross-bucket link - caller needs to resolve
-                throw new NatsException("Object is a link to another bucket: {$info->link->bucket}/{$info->link->name}");
-            }
-            return $this->get($info->link->name);
-        }
+        return new ObjectResult(
+            $info,
+            function () use ($info, $consumer): \Generator {
+                $remaining = max(1, $info->chunks);
 
-        // Fetch all chunks using direct stream message get
-        $chunkSubject = "\$O.{$this->bucketName}.C.{$info->nuid}";
-        $stream = $this->js->stream("OBJ_{$this->bucketName}");
-        $streamInfo = $stream->info();
+                while ($remaining > 0) {
+                    $batchSize = min(self::OBJECT_CHUNK_FETCH_BATCH, $remaining);
+                    $batch = $consumer->fetch($batchSize, new FetchOptions(timeout: 1.0));
+                    $fetched = 0;
 
-        $data = '';
-        for ($seq = $streamInfo->state->firstSeq; $seq <= $streamInfo->state->lastSeq; $seq++) {
-            try {
-                $rawMsg = $stream->getMessage($seq);
-                if ($rawMsg->subject === $chunkSubject) {
-                    $data .= $rawMsg->data;
+                    foreach ($batch->messages() as $message) {
+                        yield $message->data();
+                        $fetched++;
+                        $remaining--;
+                    }
+
+                    if ($fetched === 0) {
+                        return;
+                    }
                 }
-            } catch (\Throwable) {
-                continue;
-            }
-        }
-
-        return new ObjectResult($info, $data);
+            },
+            function () use ($consumerName): void {
+                $this->deleteInternalConsumer($consumerName);
+            },
+        );
     }
 
     public function getBytes(string $name): string
     {
         $result = $this->get($name);
-        return $result->readAll();
+
+        try {
+            return $result->readAll();
+        } finally {
+            $result->close();
+        }
     }
 
     public function getString(string $name): string
@@ -218,10 +237,21 @@ final class ObjectStore implements ObjectStoreInterface
 
     public function getFile(string $name, string $filePath): void
     {
-        $data = $this->getBytes($name);
-        $written = file_put_contents($filePath, $data);
-        if ($written === false) {
+        $handle = fopen($filePath, 'wb');
+        if ($handle === false) {
             throw new NatsException("Failed to write to file: {$filePath}");
+        }
+
+        $result = $this->get($name);
+
+        try {
+            $written = $result->writeTo($handle);
+            if ($written !== $result->info()->size) {
+                throw new NatsException("Failed to write to file: {$filePath}");
+            }
+        } finally {
+            $result->close();
+            fclose($handle);
         }
     }
 
@@ -381,49 +411,42 @@ final class ObjectStore implements ObjectStoreInterface
      */
     public function list(bool $showDeleted = false, bool $includeHistory = false): array
     {
+        $consumerName = $this->createInternalConsumerName($includeHistory ? 'OBJH' : 'OBJL');
         $objects = [];
-        $metaPrefix = "\$O.{$this->bucketName}.M.";
-        $stream = $this->js->stream("OBJ_{$this->bucketName}");
-        $streamInfo = $stream->info();
 
-        if ($includeHistory) {
-            // Return all versions of all objects
-            for ($seq = $streamInfo->state->firstSeq; $seq <= $streamInfo->state->lastSeq; $seq++) {
-                try {
-                    $rawMsg = $stream->getMessage($seq);
-                    if (str_starts_with($rawMsg->subject, $metaPrefix)) {
-                        $info = ObjectInfo::fromArray(T::stringKeyArray(json_decode($rawMsg->data, true, 512, JSON_THROW_ON_ERROR)));
-                        if ($showDeleted || !$info->deleted) {
-                            $objects[] = $info;
-                        }
-                    }
-                } catch (\Throwable) {
-                    continue;
-                }
-            }
-        } else {
-            // Collect latest meta per object name by scanning stream
-            $latestMeta = [];
-            for ($seq = $streamInfo->state->firstSeq; $seq <= $streamInfo->state->lastSeq; $seq++) {
-                try {
-                    $rawMsg = $stream->getMessage($seq);
-                    if (str_starts_with($rawMsg->subject, $metaPrefix)) {
-                        $info = ObjectInfo::fromArray(T::stringKeyArray(json_decode($rawMsg->data, true, 512, JSON_THROW_ON_ERROR)));
-                        $latestMeta[$info->name] = $info;
-                    }
-                } catch (\Throwable) {
-                    continue;
-                }
-            }
+        try {
+            $consumer = $this->js->createConsumer(
+                $this->streamName(),
+                new ConsumerConfig(
+                    name: $consumerName,
+                    deliverPolicy: $includeHistory ? DeliveryPolicy::All : DeliveryPolicy::LastPerSubject,
+                    ackPolicy: AckPolicy::None,
+                    filterSubject: $this->metaSubjectPrefix() . '>',
+                    inactiveThreshold: self::INTERNAL_CONSUMER_INACTIVE_THRESHOLD,
+                    replayPolicy: ReplayPolicy::Instant,
+                    memoryStorage: true,
+                ),
+            );
 
-            foreach ($latestMeta as $info) {
-                if ($showDeleted || !$info->deleted) {
-                    $objects[] = $info;
+            while (true) {
+                $batch = $consumer->fetch(self::META_FETCH_BATCH, new FetchOptions(timeout: 1.0));
+                $fetched = 0;
+
+                foreach ($batch->messages() as $message) {
+                    $info = $this->decodeObjectInfo($message->data());
+                    if ($showDeleted || !$info->deleted) {
+                        $objects[] = $info;
+                    }
+                    $fetched++;
+                }
+
+                if ($fetched < self::META_FETCH_BATCH) {
+                    return $objects;
                 }
             }
+        } finally {
+            $this->deleteInternalConsumer($consumerName);
         }
-
-        return $objects;
     }
 
     public function watch(WatchOptions ...$opts): ObjectWatcher
@@ -581,8 +604,8 @@ final class ObjectStore implements ObjectStoreInterface
 
     private function getObjectInfo(string $name): ObjectInfo
     {
-        $metaSubject = "\$O.{$this->bucketName}.M.{$this->encodeName($name)}";
-        $stream = $this->js->stream("OBJ_{$this->bucketName}");
+        $metaSubject = $this->metaSubject($name);
+        $stream = $this->js->stream($this->streamName());
 
         try {
             $rawMsg = $stream->getLastMessageForSubject($metaSubject);
@@ -590,13 +613,78 @@ final class ObjectStore implements ObjectStoreInterface
             throw new NatsException("Object not found: {$name}");
         }
 
-        return ObjectInfo::fromArray(T::stringKeyArray(json_decode($rawMsg->data, true, 512, JSON_THROW_ON_ERROR)));
+        return $this->decodeObjectInfo($rawMsg->data);
     }
 
     private function encodeName(string $name): string
     {
         // Replace special chars that aren't valid in NATS subjects
         return str_replace(['/', ' '], ['_', '_'], $name);
+    }
+
+    private function resolveReadableObjectInfo(string $name): ObjectInfo
+    {
+        $info = $this->getObjectInfo($name);
+        if ($info->deleted) {
+            throw new NatsException("Object deleted: {$name}");
+        }
+
+        if ($info->isLink()) {
+            if ($info->link === null || $info->link->name === '') {
+                throw new NatsException("Object is a bucket link and cannot be read directly: {$name}");
+            }
+
+            if ($info->link->bucket !== '' && $info->link->bucket !== $this->bucketName) {
+                throw new NatsException("Object is a link to another bucket: {$info->link->bucket}/{$info->link->name}");
+            }
+
+            return $this->resolveReadableObjectInfo($info->link->name);
+        }
+
+        if ($info->nuid === '') {
+            throw new NatsException("Object metadata is missing chunk information: {$name}");
+        }
+
+        return $info;
+    }
+
+    private function decodeObjectInfo(string $data): ObjectInfo
+    {
+        return ObjectInfo::fromArray(T::stringKeyArray(json_decode($data, true, 512, JSON_THROW_ON_ERROR)));
+    }
+
+    private function createInternalConsumerName(string $prefix): string
+    {
+        return $prefix . '_' . Inbox::nuid();
+    }
+
+    private function deleteInternalConsumer(string $consumerName): void
+    {
+        try {
+            $this->js->deleteConsumer($this->streamName(), $consumerName);
+        } catch (\Throwable) {
+            // Best effort cleanup for internal ephemeral readers.
+        }
+    }
+
+    private function streamName(): string
+    {
+        return "OBJ_{$this->bucketName}";
+    }
+
+    private function chunkSubject(string $nuid): string
+    {
+        return "\$O.{$this->bucketName}.C.{$nuid}";
+    }
+
+    private function metaSubject(string $name): string
+    {
+        return $this->metaSubjectPrefix() . $this->encodeName($name);
+    }
+
+    private function metaSubjectPrefix(): string
+    {
+        return "\$O.{$this->bucketName}.M.";
     }
 
     /**
