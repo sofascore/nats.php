@@ -36,8 +36,11 @@ $options = new ConnectionOptions(
     onClose: function (Connection $conn) {
         echo "[EVENT] Connection closed\n";
     },
-    onError: function (Connection $conn, \Throwable $err) {
+    onError: function (Connection $conn, \Throwable $err, ?\Sofascore\Nats\Subscription $sub = null) {
         echo "[ERROR] {$err->getMessage()}\n";
+        if ($sub !== null) {
+            echo "[ERROR] Subscription: {$sub->subject()} ({$sub->sid()})\n";
+        }
     },
     onLameDuckMode: function (Connection $conn) {
         echo "[EVENT] Server entering lame duck mode - preparing for shutdown\n";

@@ -240,9 +240,12 @@ $options = new ConnectionOptions(
     onConnect: fn(Connection $c) => echo "Connected to {$c->connectedUrl()}\n",
     onDisconnect: fn(Connection $c) => echo "Disconnected!\n",
     onReconnect: fn(Connection $c) => echo "Reconnected!\n",
-    onError: fn(Connection $c, \Throwable $e) => echo "Error: {$e->getMessage()}\n",
+    onError: fn(Connection $c, \Throwable $e, ?\Sofascore\Nats\Subscription $sub = null) => echo "Error: {$e->getMessage()}\n",
 );
 ```
+
+`onError` handlers receive the related `Subscription` as an optional third argument
+when the async error is subscription-scoped, such as slow-consumer detection.
 
 ### JetStream — Streams
 

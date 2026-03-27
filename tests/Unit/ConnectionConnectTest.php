@@ -178,6 +178,19 @@ final class ConnectionConnectTest extends TestCase
         self::assertSame(['tcp://127.0.0.1:4222'], $transport->connectAddresses);
     }
 
+    public function testConnectedAddrReturnsNullWithoutLiveStreamResource(): void
+    {
+        $transport = new MockTransport();
+        $conn = $this->createConnectionWithTransport($transport);
+
+        $ref = new \ReflectionClass(Connection::class);
+        $ref->getProperty('serverPool')->setValue($conn, ['nats://configured-host:4222']);
+        $ref->getProperty('currentServerIndex')->setValue($conn, 0);
+        $ref->getProperty('status')->setValue($conn, ConnectionStatus::Connected);
+
+        self::assertNull($conn->connectedAddr());
+    }
+
     public function testTimeoutDividedAcrossResolvedIps(): void
     {
         $transport = new MockTransport(failAddresses: ['tcp://10.0.0.1:4222']);

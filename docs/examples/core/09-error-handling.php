@@ -16,6 +16,7 @@ use Sofascore\Nats\ConnectionOptions;
 use Sofascore\Nats\MaxPayloadException;
 use Sofascore\Nats\NatsException;
 use Sofascore\Nats\SlowConsumerException;
+use Sofascore\Nats\Subscription;
 use Sofascore\Nats\TimeoutException;
 use Sofascore\Nats\JetStream\Error\JetStreamException;
 use Sofascore\Nats\JetStream\Stream\StreamConfig;
@@ -26,9 +27,12 @@ use Sofascore\Nats\JetStream\Stream\StreamConfig;
 
 $options = new ConnectionOptions(
     name: 'error-handling-demo',
-    onError: function (Connection $conn, \Throwable $err) {
+    onError: function (Connection $conn, \Throwable $err, ?Subscription $sub = null) {
         // Log the error, increment a metric, alert ops — whatever makes sense
-        echo "[onError] {$err::class}: {$err->getMessage()}\n";
+        echo "[onError] " . $err::class . ": {$err->getMessage()}\n";
+        if ($sub !== null) {
+            echo "[onError] subscription={$sub->subject()} sid={$sub->sid()}\n";
+        }
 
         // The same error is also available afterwards:
         // $conn->lastError()
@@ -137,7 +141,7 @@ function publishWithRetry(
                 throw $e;
             }
             $delay = $baseDelay * (2 ** ($attempt - 1));
-            echo "  Attempt {$attempt} failed ({$e::class}), retrying in {$delay}s ...\n";
+            echo "  Attempt {$attempt} failed (" . $e::class . "), retrying in {$delay}s ...\n";
             usleep((int) ($delay * 1_000_000));
         }
         // BadSubjectException, MaxPayloadException, ConnectionClosedException

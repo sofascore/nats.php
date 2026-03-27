@@ -12,6 +12,7 @@ use Sofascore\Nats\MaxPayloadException;
 use Sofascore\Nats\Message;
 use Sofascore\Nats\NatsException;
 use Sofascore\Nats\SlowConsumerException;
+use Sofascore\Nats\Subscription;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -206,12 +207,14 @@ final class SafeguardsTest extends TestCase
     {
         $slowConsumerReported = false;
         $slowConsumerError = null;
+        $slowConsumerSubscription = null;
 
         $options = new ConnectionOptions(
-            onError: function ($conn, $err) use (&$slowConsumerReported, &$slowConsumerError): void {
+            onError: function ($conn, $err, $sub = null) use (&$slowConsumerReported, &$slowConsumerError, &$slowConsumerSubscription): void {
                 if ($err instanceof SlowConsumerException) {
                     $slowConsumerReported = true;
                     $slowConsumerError = $err;
+                    $slowConsumerSubscription = $sub;
                 }
             },
         );
@@ -242,6 +245,8 @@ final class SafeguardsTest extends TestCase
             self::assertTrue($slowConsumerReported, 'Slow consumer should have been reported');
             self::assertInstanceOf(SlowConsumerException::class, $slowConsumerError);
             self::assertStringContainsString($subject, $slowConsumerError->getMessage());
+            self::assertInstanceOf(Subscription::class, $slowConsumerSubscription);
+            self::assertSame($sub->sid(), $slowConsumerSubscription->sid());
 
             $sub->unsubscribe();
         } finally {

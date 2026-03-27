@@ -3,8 +3,8 @@
 /**
  * Connection information and dynamic handlers.
  *
- * Demonstrates: rtt(), connectedAddr(), numSubscriptions(), clientId(), clientIp(),
- * authRequired(), tlsRequired(), buffered(), barrier(), stats(),
+ * Demonstrates: rtt(), connectedAddr(), localAddr(), numSubscriptions(),
+ * clientId(), clientIp(), authRequired(), tlsRequired(), buffered(), barrier(), stats(),
  * dynamic handler setup (setDisconnectHandler etc.)
  */
 
@@ -20,7 +20,8 @@ $conn = Connection::connect('nats://localhost:4222', $options);
 // --- Basic connection information ---
 
 echo "Connected URL: {$conn->connectedUrl()}\n";
-echo "Connected addr (host:port): {$conn->connectedAddr()}\n";
+echo "Connected peer addr: " . ($conn->connectedAddr() ?? 'n/a') . "\n";
+echo "Local socket addr: " . ($conn->localAddr() ?? 'n/a') . "\n";
 echo "Server: {$conn->connectedServerName()} v{$conn->connectedServerVersion()}\n";
 echo "Server ID: {$conn->connectedServerId()}\n";
 echo "Cluster: {$conn->connectedClusterName()}\n";
@@ -88,8 +89,11 @@ $conn->setClosedHandler(function (Connection $c) {
     echo "[DYNAMIC] Connection closed\n";
 });
 
-$conn->setErrorHandler(function (Connection $c, \Throwable $err) {
+$conn->setErrorHandler(function (Connection $c, \Throwable $err, ?\Sofascore\Nats\Subscription $sub = null) {
     echo "[DYNAMIC] Error: {$err->getMessage()}\n";
+    if ($sub !== null) {
+        echo "[DYNAMIC] Related subscription: {$sub->subject()} ({$sub->sid()})\n";
+    }
 });
 
 // Removing handlers (null)
