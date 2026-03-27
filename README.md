@@ -416,6 +416,8 @@ $history = $store->list(includeHistory: true); // Full metadata history
 $store->delete('config.json');
 ```
 
+Object Store reads now use internal pull consumers for lazy chunk streaming and latest-only listing. Deployments with granular JetStream auth need `CONSUMER.CREATE` and `CONSUMER.DELETE` on the `OBJ_<bucket>` stream in addition to existing stream read permissions.
+
 ### Micro Services
 
 ```php

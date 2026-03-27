@@ -244,6 +244,22 @@ final class ObjectStoreTest extends TestCase
         $store->getBytes('nonexistent.txt');
     }
 
+    public function testGetFileDoesNotTruncateExistingTargetWhenSourceIsMissing(): void
+    {
+        $store = $this->createStore();
+        $tmpFile = tempnam(sys_get_temp_dir(), 'nats-test-');
+        self::assertNotFalse($tmpFile);
+        file_put_contents($tmpFile, 'keep me');
+
+        try {
+            $this->expectException(\Sofascore\Nats\NatsException::class);
+            $store->getFile('nonexistent.txt', $tmpFile);
+        } finally {
+            self::assertSame('keep me', file_get_contents($tmpFile));
+            unlink($tmpFile);
+        }
+    }
+
     public function testOverwriteObject(): void
     {
         $store = $this->createStore();

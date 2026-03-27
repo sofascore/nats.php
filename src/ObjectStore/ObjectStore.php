@@ -237,21 +237,24 @@ final class ObjectStore implements ObjectStoreInterface
 
     public function getFile(string $name, string $filePath): void
     {
-        $handle = fopen($filePath, 'wb');
-        if ($handle === false) {
-            throw new NatsException("Failed to write to file: {$filePath}");
-        }
-
         $result = $this->get($name);
+        $handle = null;
 
         try {
+            $handle = fopen($filePath, 'wb');
+            if ($handle === false) {
+                throw new NatsException("Failed to write to file: {$filePath}");
+            }
+
             $written = $result->writeTo($handle);
             if ($written !== $result->info()->size) {
                 throw new NatsException("Failed to write to file: {$filePath}");
             }
         } finally {
             $result->close();
-            fclose($handle);
+            if (is_resource($handle)) {
+                fclose($handle);
+            }
         }
     }
 
