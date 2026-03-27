@@ -23,6 +23,10 @@ $conn->subscribe('math.add', function (Message $msg) {
     $msg->respond(json_encode(['result' => $result]));
 });
 
+// In a dedicated worker/service process you can keep callbacks alive with:
+// $conn->wait();
+// For app-managed loops, call $conn->process($timeout) yourself instead.
+
 // --- Client that sends a request ---
 
 $reply = $conn->request('math.add', json_encode(['a' => 5, 'b' => 3]), timeout: 2.0);

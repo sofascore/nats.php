@@ -244,6 +244,32 @@ final class ConsumerTest extends TestCase
         self::assertSame(5, $count);
     }
 
+    public function testMessagesTryNextUsesContextExpiresAndReturnsNullWhenNoMessageArrives(): void
+    {
+        $this->js->publish('test.cons.try-next', 'try-next');
+
+        $consumer = $this->stream->createOrUpdateConsumer(new ConsumerConfig(
+            name: 'test-try-next',
+            durable: 'test-try-next',
+            ackPolicy: AckPolicy::Explicit,
+            filterSubject: 'test.cons.try-next',
+        ));
+
+        $messages = $consumer->messages(new ConsumeOptions(
+            maxMessages: 1,
+            expires: 0.2,
+        ));
+
+        $first = $messages->tryNext(1.0);
+        self::assertNotNull($first);
+        self::assertSame('try-next', $first->data());
+        $first->ack();
+
+        $startedAt = microtime(true);
+        self::assertNull($messages->tryNext());
+        self::assertLessThan(1.0, microtime(true) - $startedAt);
+    }
+
     public function testOrderedConsumer(): void
     {
         $consumer = $this->stream->orderedConsumer(new OrderedConsumerConfig(

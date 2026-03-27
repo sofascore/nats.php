@@ -93,6 +93,18 @@ foreach ($msgs as $msg) {
 
 echo "Messages context closed: " . ($msgs->isClosed() ? 'yes' : 'no') . "\n";
 
+// Poll one message at a time without exception-driven timeout handling.
+// If maxMessages is greater than 1, tryNext() drains an internal buffer first.
+$poller = $consumer->messages(new ConsumeOptions(
+    maxMessages: 1,
+    expires: 0.2,
+));
+
+while (($msg = $poller->tryNext()) !== null) {
+    echo "TryNext: {$msg->data()}\n";
+    $msg->ack();
+}
+
 // --- 6. Consume - callback pattern ---
 // consume() creates a context object; it does not start a background worker.
 // You run it explicitly via $ctx->run() from your own process or loop.

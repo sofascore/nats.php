@@ -46,6 +46,19 @@ final class MessagesContext implements \IteratorAggregate
         throw new TimeoutException('No messages available');
     }
 
+    /**
+     * Returns the next message or null when no message arrives before the timeout.
+     * When omitted, the timeout defaults to the context expires setting.
+     */
+    public function tryNext(?float $timeout = null): ?JetStreamMessage
+    {
+        try {
+            return $this->next($timeout ?? $this->options->expires);
+        } catch (TimeoutException) {
+            return null;
+        }
+    }
+
     public function stop(): void
     {
         $this->stopped = true;
