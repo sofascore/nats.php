@@ -273,6 +273,37 @@ final class PushConsumerTest extends TestCase
         self::assertSame(PushConsumerStatus::Active, $consumer->status());
     }
 
+    public function testDescriptionHeaderPreferredOverStatusSuffix(): void
+    {
+        $consumer = $this->createConsumer();
+
+        $errors = [];
+        $deliver = $this->activateConsumer(
+            $consumer,
+            function (JetStreamMessage $msg): void {},
+            new PushConsumeOptions(
+                errorHandler: function (\Throwable $e) use (&$errors): void {
+                    $errors[] = $e;
+                },
+            ),
+        );
+
+        // Status header has code only, Description header has the semantic value
+        $headers = new Headers();
+        $headers->set('Status', '409');
+        $headers->set('Description', 'Consumer Deleted');
+        $deliver(new Message(
+            subject: 'deliver.test',
+            data: '',
+            headers: $headers,
+        ));
+
+        // Should be terminal because Description says "Consumer Deleted"
+        self::assertSame(PushConsumerStatus::Error, $consumer->status());
+        self::assertCount(1, $errors);
+        self::assertStringContainsString('Consumer Deleted', $errors[0]->getMessage());
+    }
+
     public function testTerminalStatus409(): void
     {
         $consumer = $this->createConsumer();

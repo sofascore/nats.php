@@ -153,7 +153,13 @@ final class PushConsumer implements PushConsumerInterface
         }
 
         $statusCode = (int) trim(explode(' ', $statusRaw)[0]);
-        $description = trim(substr($statusRaw, strlen((string) $statusCode))) ?: null;
+
+        // Prefer the Description header (nats.go reads it separately),
+        // fall back to parsing the suffix of the Status header value.
+        $description = $msg->headers->get('Description');
+        if ($description === null || $description === '') {
+            $description = trim(substr($statusRaw, strlen((string) $statusCode))) ?: null;
+        }
 
         match (true) {
             $statusCode === 100 => $this->handleStatus100($msg),
