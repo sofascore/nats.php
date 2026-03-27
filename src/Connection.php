@@ -646,10 +646,6 @@ final class Connection
         }
 
         $metadata = @stream_get_meta_data($stream);
-        if (!is_array($metadata)) {
-            return null;
-        }
-
         $crypto = $metadata['crypto'] ?? null;
         return is_array($crypto) ? $crypto : null;
     }
