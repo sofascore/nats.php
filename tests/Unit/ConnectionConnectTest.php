@@ -11,6 +11,7 @@ use Sofascore\Nats\NatsException;
 use Sofascore\Nats\Protocol\Parser;
 use Sofascore\Nats\Protocol\Writer;
 use Sofascore\Nats\Transport\TransportInterface;
+use Sofascore\Nats\TransportConfigurationException;
 use PHPUnit\Framework\TestCase;
 
 /**
