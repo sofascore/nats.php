@@ -51,8 +51,6 @@ final class PushConsumerTest extends TestCase
         $deliverSubject = Inbox::generate();
 
         $consumer = $this->js->createPushConsumer('TEST_PUSH', new ConsumerConfig(
-            name: 'basic-push',
-            durable: 'basic-push',
             deliverSubject: $deliverSubject,
             ackPolicy: AckPolicy::Explicit,
         ));
@@ -89,8 +87,6 @@ final class PushConsumerTest extends TestCase
         $deliverSubject = Inbox::generate();
 
         $consumer = $this->js->createPushConsumer('TEST_PUSH', new ConsumerConfig(
-            name: 'fc-push',
-            durable: 'fc-push',
             deliverSubject: $deliverSubject,
             ackPolicy: AckPolicy::Explicit,
             flowControl: true,
@@ -133,8 +129,6 @@ final class PushConsumerTest extends TestCase
         $deliverSubject = Inbox::generate();
 
         $consumer = $this->js->createPushConsumer('TEST_PUSH', new ConsumerConfig(
-            name: 'hb-push',
-            durable: 'hb-push',
             deliverSubject: $deliverSubject,
             ackPolicy: AckPolicy::None,
             idleHeartbeat: 0.3,
@@ -152,10 +146,11 @@ final class PushConsumerTest extends TestCase
         );
 
         // Process for a while — heartbeats should arrive every 0.3s
-        // If the server sends them, status stays Active
+        // With checkHeartbeat() in the loop, we can detect total silence too
         $deadline = microtime(true) + 2.0;
         while (microtime(true) < $deadline) {
             $this->conn->process(0.1);
+            $consumer->checkHeartbeat();
         }
 
         // At minimum, the consumer should still be alive (heartbeats handled)
@@ -172,7 +167,6 @@ final class PushConsumerTest extends TestCase
         $deliverSubject = Inbox::generate();
 
         $consumer = $this->js->createPushConsumer('TEST_PUSH', new ConsumerConfig(
-            name: 'del-push',
             durable: 'del-push',
             deliverSubject: $deliverSubject,
             ackPolicy: AckPolicy::None,
@@ -213,8 +207,6 @@ final class PushConsumerTest extends TestCase
         $deliverSubject = Inbox::generate();
 
         $consumer = $this->js->createPushConsumer('TEST_PUSH', new ConsumerConfig(
-            name: 'drain-push',
-            durable: 'drain-push',
             deliverSubject: $deliverSubject,
             ackPolicy: AckPolicy::None,
         ));

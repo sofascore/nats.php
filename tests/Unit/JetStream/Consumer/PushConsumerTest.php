@@ -450,4 +450,52 @@ final class PushConsumerTest extends TestCase
         // Status should NOT be Error (only >=400 is terminal)
         self::assertSame(PushConsumerStatus::Active, $consumer->status());
     }
+
+    public function testCheckHeartbeatDetectsStalledWithoutMessage(): void
+    {
+        $consumer = $this->createConsumer(idleHeartbeat: 0.001);
+
+        $errors = [];
+        $this->activateConsumer(
+            $consumer,
+            function (JetStreamMessage $msg): void {},
+            new PushConsumeOptions(
+                errorHandler: function (\Throwable $e) use (&$errors): void {
+                    $errors[] = $e;
+                },
+            ),
+        );
+
+        // Force heartbeat expiry
+        $ref = new \ReflectionClass(PushConsumer::class);
+        $ref->getProperty('lastHeartbeatTime')->setValue($consumer, microtime(true) - 1.0);
+
+        // Call checkHeartbeat() directly — no message delivery needed
+        $consumer->checkHeartbeat();
+
+        self::assertSame(PushConsumerStatus::Stalled, $consumer->status());
+        self::assertCount(1, $errors);
+        self::assertInstanceOf(PushConsumerException::class, $errors[0]);
+    }
+
+    public function testConsumeRollsBackStateOnSubscribeFailure(): void
+    {
+        // Stub connection is not connected, so subscribe() will throw
+        $consumer = $this->createConsumer();
+
+        try {
+            $consumer->consume(function (JetStreamMessage $msg): void {});
+            self::fail('Expected exception from subscribe on disconnected connection');
+        } catch (NatsException) {
+            // Expected
+        }
+
+        // Status should remain Unsubscribed, not stuck in Active
+        self::assertSame(PushConsumerStatus::Unsubscribed, $consumer->status());
+
+        // Verify internal state was cleaned up
+        $ref = new \ReflectionClass(PushConsumer::class);
+        self::assertNull($ref->getProperty('consumeOptions')->getValue($consumer));
+        self::assertNull($ref->getProperty('userHandler')->getValue($consumer));
+    }
 }

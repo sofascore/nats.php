@@ -45,6 +45,15 @@ interface PushConsumerInterface
     public function status(): PushConsumerStatus;
 
     /**
+     * Check for heartbeat timeout and transition to Stalled if exceeded.
+     *
+     * Call this from your event loop (e.g. alongside Connection::process())
+     * to detect total server silence. Without explicit calls, heartbeat
+     * timeouts are only detected when a message arrives.
+     */
+    public function checkHeartbeat(): void;
+
+    /**
      * Unsubscribes the push consumer from its deliver subject.
      */
     public function unsubscribe(): void;

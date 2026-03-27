@@ -44,10 +44,8 @@ final class PushConsumer implements PushConsumerInterface
         $this->userHandler = $handler;
         $this->heartbeatIntervalSeconds = $this->config->idleHeartbeat ?? 0.0;
         $this->lastHeartbeatTime = microtime(true);
-        $this->status = PushConsumerStatus::Active;
 
         $ctx = new PushConsumeContext($this);
-        $this->consumeContext = $ctx;
 
         $wrappedHandler = function (Message $msg) use ($ctx): void {
             if ($ctx->isStopped()) {
@@ -59,18 +57,27 @@ final class PushConsumer implements PushConsumerInterface
         $deliverSubject = $this->config->deliverSubject;
         $deliverGroup = $this->config->deliverGroup;
 
-        if ($deliverGroup !== null) {
-            $this->subscription = $this->js->connection()->queueSubscribe(
-                $deliverSubject,
-                $deliverGroup,
-                $wrappedHandler,
-            );
-        } else {
-            $this->subscription = $this->js->connection()->subscribe(
-                $deliverSubject,
-                $wrappedHandler,
-            );
+        try {
+            if ($deliverGroup !== null) {
+                $this->subscription = $this->js->connection()->queueSubscribe(
+                    $deliverSubject,
+                    $deliverGroup,
+                    $wrappedHandler,
+                );
+            } else {
+                $this->subscription = $this->js->connection()->subscribe(
+                    $deliverSubject,
+                    $wrappedHandler,
+                );
+            }
+        } catch (\Throwable $e) {
+            $this->consumeOptions = null;
+            $this->userHandler = null;
+            throw $e;
         }
+
+        $this->status = PushConsumerStatus::Active;
+        $this->consumeContext = $ctx;
 
         return $ctx;
     }
@@ -120,6 +127,11 @@ final class PushConsumer implements PushConsumerInterface
         $this->subscription = null;
         $this->status = PushConsumerStatus::Closed;
         $this->consumeContext = null;
+    }
+
+    public function checkHeartbeat(): void
+    {
+        $this->checkHeartbeatTimeout();
     }
 
     private function handleIncomingMessage(Message $msg): void
