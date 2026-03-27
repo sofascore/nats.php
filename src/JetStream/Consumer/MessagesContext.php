@@ -46,6 +46,15 @@ final class MessagesContext implements \IteratorAggregate
         throw new TimeoutException('No messages available');
     }
 
+    public function tryNext(float $timeout = 30.0): ?JetStreamMessage
+    {
+        try {
+            return $this->next($timeout);
+        } catch (TimeoutException) {
+            return null;
+        }
+    }
+
     public function stop(): void
     {
         $this->stopped = true;

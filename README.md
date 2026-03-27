@@ -179,6 +179,20 @@ $reply = $conn->request('math.add', '{"a":5,"b":3}', timeout: 2.0);
 echo json_decode($reply->data, true)['result']; // 8
 ```
 
+If you are running a long-lived service with callback subscriptions, you do not need
+to spin your own `while (true) { $conn->process(); }` loop unless you want custom
+tick timing. Use:
+
+```php
+$conn->subscribe('math.add', function (Message $msg) {
+    $msg->respond('ok');
+});
+
+$conn->wait();        // Blocks and keeps dispatching callbacks
+// or:
+$conn->process(0.5);  // One foreground tick you drive yourself
+```
+
 ### Core — Headers
 
 ```php
@@ -275,6 +289,7 @@ foreach ($batch as $msg) {
     echo $msg->data() . "\n";
     $msg->ack();
 }
+$messages = $batch->all(); // list<JetStreamMessage>
 
 // Single message
 $msg = $consumer->next(timeout: 2.0);
@@ -286,8 +301,22 @@ foreach ($msgs as $msg) {
     $msg->ack();
 }
 
+// Queue-like polling without exceptions on timeout
+$poller = $consumer->messages(new ConsumeOptions(maxMessages: 10, expires: 1.0));
+while (($msg = $poller->tryNext(1.0)) !== null) {
+    $msg->ack();
+}
+
 // ACK variants: ack(), ackSync(), nak(), nakWithDelay(5.0), term(), inProgress()
 ```
+
+If you are migrating from older queue-style snippets, the modern equivalents are:
+
+| Older pattern | Current API |
+|---|---|
+| `create()->getQueue()->fetchAll(100)` | `fetch(100, ...)->all()` |
+| `getQueue()->next()` | `messages(...)->tryNext()` or `next()` |
+| `handle(...)` | `consume(...)->run()` |
 
 ### JetStream — Publish Options
 

@@ -86,6 +86,25 @@ final class ConsumerTest extends TestCase
         self::assertSame(5, $messages[4]['id']);
     }
 
+    public function testFetchBatchAll(): void
+    {
+        $consumer = $this->stream->createOrUpdateConsumer(new ConsumerConfig(
+            name: 'test-fetch-all',
+            durable: 'test-fetch-all',
+            ackPolicy: AckPolicy::Explicit,
+        ));
+
+        $messages = $consumer->fetch(3, new FetchOptions(timeout: 3.0))->all();
+
+        self::assertCount(3, $messages);
+        self::assertSame(1, json_decode($messages[0]->data(), true)['id']);
+        self::assertSame(3, json_decode($messages[2]->data(), true)['id']);
+
+        foreach ($messages as $msg) {
+            $msg->ack();
+        }
+    }
+
     public function testFetchNoWait(): void
     {
         $consumer = $this->stream->createOrUpdateConsumer(new ConsumerConfig(
@@ -242,6 +261,30 @@ final class ConsumerTest extends TestCase
         }
 
         self::assertSame(5, $count);
+    }
+
+    public function testMessagesTryNextReturnsNullWhenNoMessageArrives(): void
+    {
+        $this->js->publish('test.cons.try-next', 'try-next');
+
+        $consumer = $this->stream->createOrUpdateConsumer(new ConsumerConfig(
+            name: 'test-try-next',
+            durable: 'test-try-next',
+            ackPolicy: AckPolicy::Explicit,
+            filterSubject: 'test.cons.try-next',
+        ));
+
+        $messages = $consumer->messages(new ConsumeOptions(
+            maxMessages: 1,
+            expires: 0.2,
+        ));
+
+        $first = $messages->tryNext(1.0);
+        self::assertNotNull($first);
+        self::assertSame('try-next', $first->data());
+        $first->ack();
+
+        self::assertNull($messages->tryNext(0.2));
     }
 
     public function testOrderedConsumer(): void

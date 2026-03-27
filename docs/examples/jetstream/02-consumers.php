@@ -50,6 +50,8 @@ foreach ($batch as $msg) {
     echo "Fetch: {$msg->data()}\n";
     $msg->ack();
 }
+$messages = $batch->all();
+echo "Fetch as list: " . count($messages) . "\n";
 echo "Batch error: " . ($batch->error() ? $batch->error()->getMessage() : 'none') . "\n";
 
 // --- 3. FetchNoWait - only available messages ---
@@ -92,6 +94,17 @@ foreach ($msgs as $msg) {
 }
 
 echo "Messages context closed: " . ($msgs->isClosed() ? 'yes' : 'no') . "\n";
+
+// Queue-style polling without exceptions on timeout:
+$poller = $consumer->messages(new ConsumeOptions(
+    maxMessages: 2,
+    expires: 0.2,
+));
+
+while (($msg = $poller->tryNext(0.2)) !== null) {
+    echo "TryNext: {$msg->data()}\n";
+    $msg->ack();
+}
 
 // --- 6. Consume - callback pattern ---
 // consume() creates a context object; it does not start a background worker.

@@ -45,6 +45,12 @@ final class MessageBatch implements \IteratorAggregate
         return $this->error;
     }
 
+    /** @return list<JetStreamMessage> */
+    public function all(): array
+    {
+        return $this->messages;
+    }
+
     /** @return \Generator<JetStreamMessage> */
     public function messages(): \Generator
     {
