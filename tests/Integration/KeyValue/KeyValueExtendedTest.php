@@ -191,6 +191,23 @@ final class KeyValueExtendedTest extends TestCase
         self::assertSame($rev, $entry->revision);
     }
 
+    public function testLimitMarkerTtlIsAppliedToBackingStreamConfigAndStatus(): void
+    {
+        $kv = $this->js->createKeyValue(new KeyValueConfig(
+            bucket: $this->bucket,
+            history: 5,
+            allowMsgTtl: true,
+            limitMarkerTtl: 600.0,
+        ));
+
+        $status = $kv->status();
+
+        self::assertSame(600.0, $status->limitMarkerTtl);
+        self::assertSame(600.0, $status->config->limitMarkerTtl);
+        self::assertTrue($status->config->allowMsgTtl);
+        self::assertSame(600, $status->streamInfo?->config->subjectDeleteMarkerTtl);
+    }
+
     public function testPurgeDeletesPreservesLiveKeys(): void
     {
         $kv = $this->js->createKeyValue(new KeyValueConfig(
