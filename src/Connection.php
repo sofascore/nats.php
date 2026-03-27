@@ -613,21 +613,9 @@ final class Connection
         return $elapsed;
     }
 
-    public function connectedAddr(): string
+    public function connectedAddr(): ?string
     {
-        $remoteAddr = $this->socketAddr(true);
-        if ($remoteAddr !== null) {
-            return $remoteAddr;
-        }
-
-        $url = $this->serverPool[$this->currentServerIndex] ?? '';
-        $parsed = parse_url($url);
-        if ($parsed === false) {
-            return '127.0.0.1:4222';
-        }
-        $host = $parsed['host'] ?? '127.0.0.1';
-        $port = $parsed['port'] ?? 4222;
-        return "{$host}:{$port}";
+        return $this->socketAddr(true);
     }
 
     public function localAddr(): ?string

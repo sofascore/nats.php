@@ -20,7 +20,7 @@ $conn = Connection::connect('nats://localhost:4222', $options);
 // --- Basic connection information ---
 
 echo "Connected URL: {$conn->connectedUrl()}\n";
-echo "Connected peer addr: {$conn->connectedAddr()}\n";
+echo "Connected peer addr: " . ($conn->connectedAddr() ?? 'n/a') . "\n";
 echo "Local socket addr: " . ($conn->localAddr() ?? 'n/a') . "\n";
 echo "Server: {$conn->connectedServerName()} v{$conn->connectedServerVersion()}\n";
 echo "Server ID: {$conn->connectedServerId()}\n";

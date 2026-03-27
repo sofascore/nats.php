@@ -39,15 +39,14 @@ final class ConnectionExtendedTest extends TestCase
     {
         $addr = $this->conn->connectedAddr();
         $localAddr = $this->conn->localAddr();
+        $port = parse_url($this->conn->connectedUrl(), PHP_URL_PORT) ?? 4222;
 
-        self::assertNotEmpty($addr);
-        self::assertTrue(
-            str_contains($addr, '127.0.0.1') || str_contains($addr, 'localhost'),
-            "Expected connectedAddr to contain '127.0.0.1' or 'localhost', got: {$addr}",
-        );
-        self::assertStringContainsString(':4222', $addr);
+        self::assertNotNull($addr);
+        self::assertStringNotContainsString('://', $addr);
+        self::assertStringEndsWith(':' . $port, $addr);
         self::assertNotNull($localAddr);
-        self::assertStringContainsString(':', $localAddr);
+        self::assertStringNotContainsString('://', $localAddr);
+        self::assertMatchesRegularExpression('/:\d+$/', $localAddr);
         self::assertNull($this->conn->tlsConnectionState());
     }
 
