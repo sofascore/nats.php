@@ -87,7 +87,7 @@ final class KeyWatcher implements \IteratorAggregate
             $consumerConfig,
         );
 
-        $messages = $consumer->messages(new \Sofascore\Nats\JetStream\Consumer\ConsumeOptions(
+        $messages = $consumer->poll(new \Sofascore\Nats\JetStream\Consumer\MessagePollOptions(
             maxMessages: 100,
             expires: 5.0,
         ));

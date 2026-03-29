@@ -37,14 +37,14 @@ final class OrderedConsumer implements ConsumerInterface
         return $this->getInner()->fetchNoWait($batch);
     }
 
-    public function consume(\Closure $handler, ?ConsumeOptions $opts = null): ConsumeContext
+    public function consumeLoop(\Closure $handler, ?ConsumeLoopOptions $opts = null): ConsumeContext
     {
-        return $this->getInner()->consume($handler, $opts);
+        return $this->getInner()->consumeLoop($handler, $opts);
     }
 
-    public function messages(?ConsumeOptions $opts = null): MessagesContext
+    public function poll(?MessagePollOptions $opts = null): MessagePoller
     {
-        return $this->getInner()->messages($opts);
+        return $this->getInner()->poll($opts);
     }
 
     public function next(float $timeout = 5.0): JetStreamMessage

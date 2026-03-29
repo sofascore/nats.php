@@ -14,9 +14,16 @@ interface ConsumerInterface
 
     public function fetchNoWait(int $batch): MessageBatch;
 
-    public function consume(\Closure $handler, ?ConsumeOptions $opts = null): ConsumeContext;
+    /**
+     * Prepares a foreground callback loop.
+     * Call run() on the returned context to start it.
+     */
+    public function consumeLoop(\Closure $handler, ?ConsumeLoopOptions $opts = null): ConsumeContext;
 
-    public function messages(?ConsumeOptions $opts = null): MessagesContext;
+    /**
+     * Creates a pull-oriented poller over repeated fetch() calls.
+     */
+    public function poll(?MessagePollOptions $opts = null): MessagePoller;
 
     public function next(float $timeout = 5.0): JetStreamMessage;
 

@@ -14,7 +14,7 @@ final class ConsumeContext
     public function __construct(
         private readonly Consumer $consumer,
         private readonly \Closure $handler,
-        private readonly ConsumeOptions $options,
+        private readonly ConsumeLoopOptions $options,
     ) {}
 
     public function stop(): void
@@ -33,8 +33,7 @@ final class ConsumeContext
     }
 
     /**
-     * Returns the last error encountered during consumption.
-     * Matches Go client ConsumeContext.Err().
+     * Returns the last error recorded while running the foreground consume loop.
      */
     public function lastError(): ?\Throwable
     {
@@ -43,14 +42,17 @@ final class ConsumeContext
 
     /**
      * Returns current consumer info from the server.
-     * Matches Go client ConsumeContext.Info().
      */
     public function info(): ConsumerInfo
     {
         return $this->consumer->info();
     }
 
-    /** @internal Run the consumption loop */
+    /**
+     * Starts the foreground consume loop.
+     *
+     * The loop blocks until stop() or drain() ends it.
+     */
     public function run(): void
     {
         while (!$this->stopped) {
@@ -74,7 +76,6 @@ final class ConsumeContext
             } catch (\Throwable $e) {
                 $this->lastError = $e;
 
-                // Invoke error handler if configured (matches Go ConsumeErrHandler)
                 if ($this->options->errorHandler !== null) {
                     ($this->options->errorHandler)($e);
                 }

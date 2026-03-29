@@ -193,17 +193,17 @@ final class Consumer implements ConsumerInterface
         return $messageBatch;
     }
 
-    public function consume(\Closure $handler, ?ConsumeOptions $opts = null): ConsumeContext
+    public function consumeLoop(\Closure $handler, ?ConsumeLoopOptions $opts = null): ConsumeContext
     {
-        $opts ??= new ConsumeOptions();
+        $opts ??= new ConsumeLoopOptions();
         $ctx = new ConsumeContext($this, $handler, $opts);
         return $ctx;
     }
 
-    public function messages(?ConsumeOptions $opts = null): MessagesContext
+    public function poll(?MessagePollOptions $opts = null): MessagePoller
     {
-        $opts ??= new ConsumeOptions();
-        return new MessagesContext($this, $opts);
+        $opts ??= new MessagePollOptions();
+        return new MessagePoller($this, $opts);
     }
 
     public function next(float $timeout = 5.0): JetStreamMessage

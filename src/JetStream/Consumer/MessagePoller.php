@@ -8,9 +8,11 @@ use Sofascore\Nats\JetStream\Message\JetStreamMessage;
 use Sofascore\Nats\TimeoutException;
 
 /**
+ * Pull-oriented iterator over repeated fetch() calls.
+ *
  * @implements \IteratorAggregate<int, JetStreamMessage>
  */
-final class MessagesContext implements \IteratorAggregate
+final class MessagePoller implements \IteratorAggregate
 {
     /** @var list<JetStreamMessage> */
     private array $buffer = [];
@@ -20,7 +22,7 @@ final class MessagesContext implements \IteratorAggregate
     /** @internal */
     public function __construct(
         private readonly Consumer $consumer,
-        private readonly ConsumeOptions $options,
+        private readonly MessagePollOptions $options,
     ) {}
 
     public function next(float $timeout = 30.0): JetStreamMessage
@@ -29,7 +31,6 @@ final class MessagesContext implements \IteratorAggregate
             return array_shift($this->buffer);
         }
 
-        // Fetch a small batch
         $batch = $this->consumer->fetch(
             $this->options->maxMessages,
             new FetchOptions(timeout: $timeout),
@@ -48,7 +49,7 @@ final class MessagesContext implements \IteratorAggregate
 
     /**
      * Returns the next message or null when no message arrives before the timeout.
-     * When omitted, the timeout defaults to the context expires setting.
+     * When omitted, the timeout defaults to the poller expires setting.
      */
     public function tryNext(?float $timeout = null): ?JetStreamMessage
     {
