@@ -51,8 +51,8 @@ For full runnable scripts grouped by feature, see the example files below. That 
 | **Authentication** | User/pass, token, NKey (Ed25519/sodium), JWT, credentials file, TLS |
 | **Reconnection** | Automatic reconnect with jitter, buffer, custom delay, server discovery, dynamic handlers |
 | **Event Handlers** | onConnect, onDisconnect, onReconnect, onClose, onError, onLameDuckMode, onDiscoveredServers |
-| **JetStream Streams** | Create, createOrUpdate, update, delete, purge, info (with filters), list, getMessage, secureDelete, mirrors, sources, subject transforms |
-| **JetStream Consumers** | Pull (fetch/fetchBytes/fetchNoWait/next/messages/consume), push, ordered, durable, pause/resume, priority groups |
+| **JetStream Streams** | Create, createOrUpdate, update, delete, purge, info (with filters), list, getMessage, directGet, secureDelete, mirrors, sources, subject transforms |
+| **JetStream Consumers** | Pull (fetch/fetchBytes/fetchNoWait/next/poll/consumeLoop), push, ordered, durable, pause/resume, priority groups |
 | **JetStream Publish** | Sync/async (with pending tracking), deduplication (msgId), per-message TTL, optimistic concurrency, retry, stallWait |
 | **Key-Value Store** | Put, get, getRevision, create (CAS + TTL), update (CAS), delete, purge (+ TTL), purgeDeletes, history, watch, watchFiltered, listKeys, listKeysFiltered, bucket CRUD |
 | **Object Store** | Put (bytes/string/file), get, getInfo, delete, list (+ showDeleted), addLink, addBucketLink, seal, watch, chunked transfer, metadata, compression |
@@ -356,7 +356,8 @@ use Sofascore\Nats\JetStream\Consumer\{ConsumerConfig, PushConsumeOptions};
 use Sofascore\Nats\JetStream\Message\JetStreamMessage;
 use Sofascore\Nats\Enum\AckPolicy;
 
-$push = $js->createPushConsumer('ORDERS', new ConsumerConfig(
+$orders = $js->stream('ORDERS');
+$push = $orders->createPushConsumer(new ConsumerConfig(
     durable: 'push-orders',
     deliverSubject: 'deliver.orders',
     ackPolicy: AckPolicy::Explicit,

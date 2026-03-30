@@ -3,8 +3,9 @@
 /**
  * Advanced consumer operations.
  *
- * Demonstrates: pauseConsumer/resumeConsumer, push consumer CRUD/consume
- * (createPushConsumer, pushConsumer, consume, checkHeartbeat),
+ * Demonstrates: pauseConsumer/resumeConsumer, stream-level push consumer
+ * CRUD/consume (createPushConsumer, pushConsumer, createOrUpdatePushConsumer,
+ * consume, checkHeartbeat),
  * ConsumerConfig advanced fields (sampleFrequency, backOff,
  * maxRequestExpires, headersOnly), fetchBytes, consumer info details
  * (numPending, numAckPending, cluster info).
@@ -140,8 +141,8 @@ echo "Consumer resumed: " . ($resumeResponse->paused ? 'still paused' : 'active'
 
 // --- 6. Push Consumer CRUD ---
 
-// Create push consumer (messages are delivered to deliverSubject)
-$pushConsumer = $js->createPushConsumer('TASKS', new ConsumerConfig(
+// Create push consumer directly from the resolved stream handle
+$pushConsumer = $stream->createPushConsumer(new ConsumerConfig(
     name: 'push-worker',
     durable: 'push-worker',
     deliverPolicy: DeliveryPolicy::All,
@@ -157,11 +158,11 @@ $pushConsumer = $js->createPushConsumer('TASKS', new ConsumerConfig(
 echo "Push consumer created: push-worker\n";
 
 // Fetch push consumer by name
-$existingPush = $js->pushConsumer('TASKS', 'push-worker');
+$existingPush = $stream->pushConsumer('push-worker');
 echo "Push consumer fetched: push-worker\n";
 
 // Update push consumer
-$updatedPush = $js->createOrUpdatePushConsumer('TASKS', new ConsumerConfig(
+$updatedPush = $stream->createOrUpdatePushConsumer(new ConsumerConfig(
     name: 'push-worker',
     durable: 'push-worker',
     deliverPolicy: DeliveryPolicy::All,
@@ -175,6 +176,7 @@ $updatedPush = $js->createOrUpdatePushConsumer('TASKS', new ConsumerConfig(
 ));
 
 echo "Push consumer updated.\n";
+echo "Existing push consumer status: {$existingPush->status()->value}\n";
 
 // --- 7. Push consume() with heartbeat checks ---
 

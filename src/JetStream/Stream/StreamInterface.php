@@ -8,6 +8,7 @@ use Sofascore\Nats\JetStream\Consumer\ConsumerConfig;
 use Sofascore\Nats\JetStream\Consumer\ConsumerInterface;
 use Sofascore\Nats\JetStream\Consumer\ConsumerPauseResponse;
 use Sofascore\Nats\JetStream\Consumer\OrderedConsumerConfig;
+use Sofascore\Nats\JetStream\Consumer\PushConsumerInterface;
 
 interface StreamInterface
 {
@@ -20,6 +21,14 @@ interface StreamInterface
     public function consumer(string $name): ConsumerInterface;
 
     public function orderedConsumer(?OrderedConsumerConfig $config = null): ConsumerInterface;
+
+    public function createPushConsumer(ConsumerConfig $config): PushConsumerInterface;
+
+    public function updatePushConsumer(ConsumerConfig $config): PushConsumerInterface;
+
+    public function createOrUpdatePushConsumer(ConsumerConfig $config): PushConsumerInterface;
+
+    public function pushConsumer(string $name): PushConsumerInterface;
 
     public function deleteConsumer(string $name): void;
 
@@ -36,6 +45,8 @@ interface StreamInterface
     public function getMessage(int $sequence): RawStreamMessage;
 
     public function getLastMessageForSubject(string $subject): RawStreamMessage;
+
+    public function directGet(string $subject, ?int $sequence = null): RawStreamMessage;
 
     public function deleteMessage(int $sequence): void;
 
