@@ -225,7 +225,7 @@ final class PushConsumerTest extends TestCase
         self::assertSame(PushConsumerStatus::Closed, $consumer->status());
     }
 
-    public function testStreamHandlePushConsumerCrud(): void
+    public function testStreamHandlePushConsumerLookupAndDelete(): void
     {
         $deliverSubject = Inbox::generate();
 
@@ -244,6 +244,23 @@ final class PushConsumerTest extends TestCase
         self::assertSame('stream-push', $fetched->name());
         self::assertSame($deliverSubject, $fetched->deliverSubject());
 
+        $this->stream->deleteConsumer('stream-push');
+
+        $this->expectException(JetStreamException::class);
+        $this->stream->pushConsumer('stream-push');
+    }
+
+    public function testStreamHandleUpdatePushConsumer(): void
+    {
+        $deliverSubject = Inbox::generate();
+
+        $this->stream->createPushConsumer(new ConsumerConfig(
+            name: 'stream-push',
+            durable: 'stream-push',
+            deliverSubject: $deliverSubject,
+            ackPolicy: AckPolicy::Explicit,
+        ));
+
         $updated = $this->stream->updatePushConsumer(new ConsumerConfig(
             name: 'stream-push',
             durable: 'stream-push',
@@ -251,7 +268,21 @@ final class PushConsumerTest extends TestCase
             ackPolicy: AckPolicy::Explicit,
             maxDeliver: 5,
         ));
+
         self::assertSame(5, $updated->info()->config->maxDeliver);
+    }
+
+    public function testStreamHandleCreateOrUpdatePushConsumer(): void
+    {
+        $deliverSubject = Inbox::generate();
+
+        $this->stream->createPushConsumer(new ConsumerConfig(
+            name: 'stream-push',
+            durable: 'stream-push',
+            deliverSubject: $deliverSubject,
+            ackPolicy: AckPolicy::Explicit,
+            maxDeliver: 3,
+        ));
 
         $upserted = $this->stream->createOrUpdatePushConsumer(new ConsumerConfig(
             name: 'stream-push',
@@ -261,10 +292,5 @@ final class PushConsumerTest extends TestCase
             maxDeliver: 7,
         ));
         self::assertSame(7, $upserted->info()->config->maxDeliver);
-
-        $this->stream->deleteConsumer('stream-push');
-
-        $this->expectException(JetStreamException::class);
-        $this->stream->pushConsumer('stream-push');
     }
 }
