@@ -336,6 +336,24 @@ final class ServiceTest extends TestCase
         self::assertTrue($svc->isStopped());
     }
 
+    public function testStopCleansUpServiceSubscriptions(): void
+    {
+        $svc = Service::create($this->conn, new ServiceConfig(
+            name: 'cleanup-svc',
+            version: '1.0.0',
+        ));
+
+        $svc->addEndpoint('echo', function (RequestInterface $req): void {
+            $req->respond('ok');
+        }, new EndpointConfig(subject: 'svc.cleanup.echo'));
+
+        self::assertGreaterThan(0, $this->conn->numSubscriptions());
+
+        $svc->stop();
+
+        self::assertSame(0, $this->conn->numSubscriptions());
+    }
+
     public function testHandlerFailureIsExposedThroughLastErrorAndStats(): void
     {
         $svc = Service::create($this->conn, new ServiceConfig(

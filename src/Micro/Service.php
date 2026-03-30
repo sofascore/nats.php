@@ -39,6 +39,7 @@ final class Service implements ServiceInterface
     private bool $stopped = false;
     private ?\Throwable $lastError = null;
     private int $handlerDepth = 0;
+    private bool $pendingStopCleanup = false;
 
     /** @var array<string, array{handler: \Closure|HandlerInterface, config: EndpointConfig, sub: Subscription, stats: array{requests: int, errors: int, processing_time: float, last_error: ?string}}> */
     private array $endpoints = [];
@@ -112,6 +113,7 @@ final class Service implements ServiceInterface
                 }
             } finally {
                 $this->handlerDepth--;
+                $this->finishPendingStopCleanup();
             }
         };
 
@@ -264,12 +266,15 @@ final class Service implements ServiceInterface
             if ($this->handlerDepth === 0) {
                 try {
                     $this->connection->flush(0.5);
+                    $this->finalizeStoppedSubscriptions($subs);
                 } catch (\Throwable $e) {
                     $this->recordError($e);
                     foreach ($subs as $sub) {
                         $sub->unsubscribe();
                     }
                 }
+            } else {
+                $this->pendingStopCleanup = true;
             }
         } else {
             foreach ($subs as $sub) {
@@ -404,6 +409,7 @@ final class Service implements ServiceInterface
             $this->recordError($e);
         } finally {
             $this->handlerDepth--;
+            $this->finishPendingStopCleanup();
         }
     }
 
@@ -414,6 +420,32 @@ final class Service implements ServiceInterface
         $errorHandler = $this->config->errorHandler;
         if ($errorHandler !== null) {
             $errorHandler($this, $e);
+        }
+    }
+
+    private function finishPendingStopCleanup(): void
+    {
+        if (!$this->pendingStopCleanup || $this->handlerDepth !== 0) {
+            return;
+        }
+
+        $this->pendingStopCleanup = false;
+        $this->finalizeStoppedSubscriptions($this->serviceSubscriptions());
+    }
+
+    /**
+     * @param list<Subscription> $subs
+     */
+    private function finalizeStoppedSubscriptions(array $subs): void
+    {
+        foreach ($subs as $sub) {
+            $sub->checkDrainComplete();
+        }
+
+        foreach ($subs as $sub) {
+            if (!$sub->isDrained() && $sub->isValid()) {
+                $sub->unsubscribe();
+            }
         }
     }
 }
