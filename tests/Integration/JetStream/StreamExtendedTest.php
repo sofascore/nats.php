@@ -178,9 +178,10 @@ final class StreamExtendedTest extends TestCase
                 allowMsgSchedules: true,
             ));
         } catch (\Sofascore\Nats\JetStream\Error\JetStreamException $e) {
-            if (str_contains($e->getMessage(), 'unknown')
+            if ($e->apiError?->errCode === 10025
+                || str_contains($e->getMessage(), 'unknown')
                 || str_contains($e->getMessage(), 'not supported')
-                || str_contains($e->getMessage(), 'allow_atomic_publish')
+                || str_contains($e->getMessage(), 'allow_atomic')
                 || str_contains($e->getMessage(), 'allow_msg_counter')
                 || str_contains($e->getMessage(), 'allow_msg_schedules')) {
                 self::markTestSkipped('Newer stream config fields require a NATS server with 2.12 stream support');

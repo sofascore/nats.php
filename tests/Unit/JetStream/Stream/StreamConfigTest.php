@@ -94,7 +94,7 @@ final class StreamConfigTest extends TestCase
         self::assertSame(200, $array['consumer_limits']['max_ack_pending']);
         self::assertTrue($array['allow_msg_ttl']);
         self::assertSame(120_000_000_000, $array['subject_delete_marker_ttl']);
-        self::assertTrue($array['allow_atomic_publish']);
+        self::assertTrue($array['allow_atomic']);
         self::assertTrue($array['allow_msg_counter']);
         self::assertTrue($array['allow_msg_schedules']);
     }
@@ -110,7 +110,7 @@ final class StreamConfigTest extends TestCase
         self::assertArrayNotHasKey('allow_msg_ttl', $array);
         self::assertArrayNotHasKey('subject_delete_marker_ttl', $array);
         self::assertArrayNotHasKey('mirror_direct', $array);
-        self::assertArrayNotHasKey('allow_atomic_publish', $array);
+        self::assertArrayNotHasKey('allow_atomic', $array);
         self::assertArrayNotHasKey('allow_msg_counter', $array);
         self::assertArrayNotHasKey('allow_msg_schedules', $array);
     }
@@ -133,7 +133,7 @@ final class StreamConfigTest extends TestCase
             ],
             'allow_msg_ttl' => true,
             'subject_delete_marker_ttl' => 60_000_000_000,
-            'allow_atomic_publish' => true,
+            'allow_atomic' => true,
             'allow_msg_counter' => true,
             'allow_msg_schedules' => true,
         ];
