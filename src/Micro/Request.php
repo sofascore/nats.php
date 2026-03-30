@@ -11,6 +11,8 @@ use Sofascore\Nats\NatsException;
 
 final class Request implements RequestInterface
 {
+    private bool $responded = false;
+
     public function __construct(
         private readonly Message $msg,
         private readonly Connection $connection,
@@ -18,16 +20,7 @@ final class Request implements RequestInterface
 
     public function respond(string $data, ?Headers $headers = null): void
     {
-        if ($this->msg->replyTo === null) {
-            throw new NatsException('No reply subject');
-        }
-
-        $response = new Message(
-            subject: $this->msg->replyTo,
-            data: $data,
-            headers: $headers,
-        );
-        $this->connection->publishMessage($response);
+        $this->sendResponse($data, $headers);
     }
 
     public function respondJson(mixed $data, ?Headers $headers = null): void
@@ -39,20 +32,16 @@ final class Request implements RequestInterface
 
     public function error(string $code, string $description, string $data = ''): void
     {
-        if ($this->msg->replyTo === null) {
-            throw new NatsException('No reply subject');
-        }
-
         $headers = new Headers();
         $headers->set('Nats-Service-Error', $description);
         $headers->set('Nats-Service-Error-Code', $code);
 
-        $response = new Message(
-            subject: $this->msg->replyTo,
-            data: $data,
-            headers: $headers,
-        );
-        $this->connection->publishMessage($response);
+        $this->sendResponse($data, $headers);
+    }
+
+    public function hasResponded(): bool
+    {
+        return $this->responded;
     }
 
     public function data(): string
@@ -78,5 +67,24 @@ final class Request implements RequestInterface
     public function msg(): Message
     {
         return $this->msg;
+    }
+
+    private function sendResponse(string $data, ?Headers $headers = null): void
+    {
+        if ($this->msg->replyTo === null) {
+            throw new NatsException('No reply subject');
+        }
+
+        if ($this->responded) {
+            throw new NatsException('Response already sent');
+        }
+
+        $response = new Message(
+            subject: $this->msg->replyTo,
+            data: $data,
+            headers: $headers,
+        );
+        $this->connection->publishMessage($response);
+        $this->responded = true;
     }
 }

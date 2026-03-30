@@ -10,6 +10,7 @@ use Sofascore\Nats\Micro\HandlerInterface;
 use Sofascore\Nats\Micro\RequestInterface;
 use Sofascore\Nats\Micro\Service;
 use Sofascore\Nats\Micro\ServiceConfig;
+use Sofascore\Nats\NatsException;
 use Sofascore\Nats\Tests\Integration\NatsUrlTrait;
 use PHPUnit\Framework\TestCase;
 
@@ -256,6 +257,34 @@ final class ServiceTest extends TestCase
 
         $stats = $svc->stats();
         self::assertSame(0, $stats->endpoints[0]->numRequests);
+        self::assertNull($svc->lastError());
+
+        $svc->stop();
+    }
+
+    public function testServiceResetStartsNewStatsWindow(): void
+    {
+        $svc = Service::create($this->conn, new ServiceConfig(
+            name: 'reset-window-svc',
+            version: '1.0.0',
+        ));
+
+        $svc->addEndpoint('fail', function (): void {
+            throw new \RuntimeException('boom');
+        }, new EndpointConfig(subject: 'svc.reset.window'));
+
+        $reply = $this->conn->request('svc.reset.window', '', 2.0);
+        self::assertSame('boom', $reply->headers?->get('Nats-Service-Error'));
+        self::assertSame('boom', $svc->lastError()?->getMessage());
+
+        $startedBeforeReset = $svc->stats()->started->format('U.u');
+        usleep(10_000);
+
+        $svc->reset();
+
+        $startedAfterReset = $svc->stats()->started->format('U.u');
+        self::assertNotSame($startedBeforeReset, $startedAfterReset);
+        self::assertNull($svc->lastError());
 
         $svc->stop();
     }
@@ -305,5 +334,95 @@ final class ServiceTest extends TestCase
         $svc->stop();
         $svc->stop(); // Should not throw
         self::assertTrue($svc->isStopped());
+    }
+
+    public function testHandlerFailureIsExposedThroughLastErrorAndStats(): void
+    {
+        $svc = Service::create($this->conn, new ServiceConfig(
+            name: 'last-error-svc',
+            version: '1.0.0',
+        ));
+
+        $svc->addEndpoint('explode', function (): void {
+            throw new \RuntimeException('handler exploded');
+        }, new EndpointConfig(subject: 'svc.last.error'));
+
+        $reply = $this->conn->request('svc.last.error', '', 2.0);
+
+        self::assertSame('handler exploded', $reply->headers?->get('Nats-Service-Error'));
+        self::assertInstanceOf(\RuntimeException::class, $svc->lastError());
+        self::assertSame('handler exploded', $svc->lastError()?->getMessage());
+
+        $stats = $svc->stats();
+        self::assertSame(1, $stats->endpoints[0]->numRequests);
+        self::assertSame(1, $stats->endpoints[0]->numErrors);
+        self::assertSame('handler exploded', $stats->endpoints[0]->lastError);
+
+        $svc->stop();
+    }
+
+    public function testRequestHasRespondedState(): void
+    {
+        $states = [];
+
+        $svc = Service::create($this->conn, new ServiceConfig(
+            name: 'responded-svc',
+            version: '1.0.0',
+        ));
+
+        $svc->addEndpoint('echo', function (RequestInterface $req) use (&$states): void {
+            $states[] = $req->hasResponded();
+            $req->respond('ok');
+            $states[] = $req->hasResponded();
+        }, new EndpointConfig(subject: 'svc.responded.state'));
+
+        $reply = $this->conn->request('svc.responded.state', '', 2.0);
+
+        self::assertSame('ok', $reply->data);
+        self::assertSame([false, true], $states);
+
+        $svc->stop();
+    }
+
+    public function testResponseSendFailureIsObservable(): void
+    {
+        $svc = Service::create($this->conn, new ServiceConfig(
+            name: 'response-failure-svc',
+            version: '1.0.0',
+        ));
+
+        $svc->addEndpoint('reply', function (RequestInterface $req): void {
+            $req->respond('ok');
+        }, new EndpointConfig(subject: 'svc.response.failure'));
+
+        $this->conn->publish('svc.response.failure', 'fire-and-forget');
+        $this->conn->flush();
+        $this->conn->process(0.2);
+
+        self::assertSame('No reply subject', $svc->lastError()?->getMessage());
+
+        $stats = $svc->stats();
+        self::assertSame(1, $stats->endpoints[0]->numRequests);
+        self::assertSame(1, $stats->endpoints[0]->numErrors);
+        self::assertSame('No reply subject', $stats->endpoints[0]->lastError);
+
+        $svc->stop();
+    }
+
+    public function testCannotAddEndpointAfterStop(): void
+    {
+        $svc = Service::create($this->conn, new ServiceConfig(
+            name: 'stopped-svc',
+            version: '1.0.0',
+        ));
+
+        $svc->stop();
+
+        $this->expectException(NatsException::class);
+        $this->expectExceptionMessage('Service is stopped');
+
+        $svc->addEndpoint('echo', function (RequestInterface $req): void {
+            $req->respond('ok');
+        });
     }
 }

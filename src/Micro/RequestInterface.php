@@ -15,6 +15,8 @@ interface RequestInterface
 
     public function error(string $code, string $description, string $data = ''): void;
 
+    public function hasResponded(): bool;
+
     public function data(): string;
 
     public function headers(): ?Headers;

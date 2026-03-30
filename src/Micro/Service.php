@@ -8,6 +8,7 @@ use Sofascore\Nats\Connection;
 use Sofascore\Nats\Enum\ServiceVerb;
 use Sofascore\Nats\Inbox;
 use Sofascore\Nats\Message;
+use Sofascore\Nats\NatsException;
 use Sofascore\Nats\Subscription;
 
 final class Service implements ServiceInterface
@@ -34,8 +35,10 @@ final class Service implements ServiceInterface
     }
 
     private readonly string $id;
-    private readonly \DateTimeImmutable $started;
+    private \DateTimeImmutable $started;
     private bool $stopped = false;
+    private ?\Throwable $lastError = null;
+    private int $handlerDepth = 0;
 
     /** @var array<string, array{handler: \Closure|HandlerInterface, config: EndpointConfig, sub: Subscription, stats: array{requests: int, errors: int, processing_time: float, last_error: ?string}}> */
     private array $endpoints = [];
@@ -55,12 +58,6 @@ final class Service implements ServiceInterface
     {
         $service = new self($conn, $config);
         $service->setupControlSubjects();
-
-        // Add default endpoint if configured
-        if ($config->endpoint !== null) {
-            // Requires a handler — skip if not provided
-        }
-
         return $service;
     }
 
@@ -69,20 +66,18 @@ final class Service implements ServiceInterface
         \Closure|HandlerInterface $handler,
         ?EndpointConfig $config = null,
     ): self {
-        $config ??= new EndpointConfig();
-        $subject = $config->subject ?? $name;
+        if ($this->stopped) {
+            throw new NatsException('Service is stopped');
+        }
 
-        $queueGroup = match (true) {
-            $config->queueGroupDisabled => null,
-            $config->queueGroup !== null => $config->queueGroup,
-            $this->config->queueGroupDisabled => null,
-            $this->config->queueGroup !== null => $this->config->queueGroup,
-            default => 'q',
-        };
+        $config ??= new EndpointConfig();
+        $subject = $this->subjectFor($name, $config);
+        $queueGroup = $this->queueGroupFor($config);
 
         $wrappedHandler = function (Message $msg) use ($name, $handler): void {
             $request = new Request($msg, $this->connection);
             $startTime = hrtime(true);
+            $this->handlerDepth++;
 
             try {
                 if ($handler instanceof HandlerInterface) {
@@ -105,17 +100,18 @@ final class Service implements ServiceInterface
                 $stats['last_error'] = $e->getMessage();
                 $this->endpoints[$name]['stats'] = $stats;
 
-                $errorHandler = $this->config->errorHandler;
-                if ($errorHandler !== null) {
-                    $errorHandler($this, $e);
-                }
+                $this->recordError($e);
 
                 // Send error response if not already responded
-                try {
-                    $request->error('500', $e->getMessage());
-                } catch (\Throwable) {
-                    // Ignore - response may already be sent
+                if (!$request->hasResponded()) {
+                    try {
+                        $request->error('500', $e->getMessage());
+                    } catch (\Throwable $sendError) {
+                        $this->recordError($sendError);
+                    }
                 }
+            } finally {
+                $this->handlerDepth--;
             }
         };
 
@@ -148,6 +144,10 @@ final class Service implements ServiceInterface
 
     public function addGroup(string $name, ?string $queueGroup = null, bool $queueGroupDisabled = false): GroupInterface
     {
+        if ($this->stopped) {
+            throw new NatsException('Service is stopped');
+        }
+
         return new Group($this, $name, $queueGroup, $queueGroupDisabled);
     }
 
@@ -156,7 +156,7 @@ final class Service implements ServiceInterface
         /** @var list<array{name: string, subject: string, metadata?: array<string, string>}> $endpoints */
         $endpoints = [];
         foreach ($this->endpoints as $name => $ep) {
-            $subject = $ep['config']->subject ?? $name;
+            $subject = $this->subjectFor($name, $ep['config']);
             if ($ep['config']->metadata !== []) {
                 $endpoints[] = [
                     'name' => $name,
@@ -193,7 +193,7 @@ final class Service implements ServiceInterface
 
             $epStats = new EndpointStats(
                 name: $name,
-                subject: $ep['config']->subject ?? $name,
+                subject: $this->subjectFor($name, $ep['config']),
                 numRequests: $totalReqs,
                 numErrors: $ep['stats']['errors'],
                 processingTime: $totalTime,
@@ -242,6 +242,9 @@ final class Service implements ServiceInterface
                 'last_error' => null,
             ];
         }
+
+        $this->lastError = null;
+        $this->started = new \DateTimeImmutable();
     }
 
     public function stop(): void
@@ -251,15 +254,33 @@ final class Service implements ServiceInterface
         }
 
         $this->stopped = true;
+        $subs = $this->serviceSubscriptions();
 
-        // Unsubscribe all endpoints
-        foreach ($this->endpoints as $ep) {
-            $ep['sub']->unsubscribe();
-        }
+        if ($this->connection->isConnected()) {
+            foreach ($subs as $sub) {
+                $sub->drain();
+            }
 
-        // Unsubscribe control subjects
-        foreach ($this->controlSubs as $sub) {
-            $sub->unsubscribe();
+            if ($this->handlerDepth === 0) {
+                try {
+                    $this->connection->flush(0.5);
+                } catch (\Throwable $e) {
+                    $this->recordError($e);
+                    foreach ($subs as $sub) {
+                        $sub->unsubscribe();
+                    }
+                }
+            }
+        } else {
+            foreach ($subs as $sub) {
+                $sub->unsubscribe();
+            }
+
+            if (!$this->connection->isClosed()) {
+                $this->recordError(new NatsException(
+                    'Service stopped without graceful drain because the connection was not connected',
+                ));
+            }
         }
 
         $doneHandler = $this->config->doneHandler;
@@ -271,6 +292,11 @@ final class Service implements ServiceInterface
     public function isStopped(): bool
     {
         return $this->stopped;
+    }
+
+    public function lastError(): ?\Throwable
+    {
+        return $this->lastError;
     }
 
     public function id(): string
@@ -323,18 +349,71 @@ final class Service implements ServiceInterface
             $response['metadata'] = $this->config->metadata;
         }
 
-        $msg->respond(json_encode($response, JSON_THROW_ON_ERROR));
+        $this->replyControl($msg, $response);
     }
 
     private function handleInfo(Message $msg): void
     {
-        $info = $this->info();
-        $msg->respond(json_encode($info->toArray(), JSON_THROW_ON_ERROR));
+        $this->replyControl($msg, $this->info()->toArray());
     }
 
     private function handleStats(Message $msg): void
     {
-        $stats = $this->stats();
-        $msg->respond(json_encode($stats->toArray(), JSON_THROW_ON_ERROR));
+        $this->replyControl($msg, $this->stats()->toArray());
+    }
+
+    /**
+     * @return list<Subscription>
+     */
+    private function serviceSubscriptions(): array
+    {
+        $subs = [];
+        foreach ($this->endpoints as $ep) {
+            $subs[] = $ep['sub'];
+        }
+
+        return array_merge($subs, $this->controlSubs);
+    }
+
+    private function subjectFor(string $name, EndpointConfig $config): string
+    {
+        return $config->subject ?? $name;
+    }
+
+    private function queueGroupFor(EndpointConfig $config): ?string
+    {
+        return match (true) {
+            $config->queueGroupDisabled => null,
+            $config->queueGroup !== null => $config->queueGroup,
+            $this->config->queueGroupDisabled => null,
+            $this->config->queueGroup !== null => $this->config->queueGroup,
+            default => 'q',
+        };
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     */
+    private function replyControl(Message $msg, array $payload): void
+    {
+        $this->handlerDepth++;
+
+        try {
+            $msg->respond(json_encode($payload, JSON_THROW_ON_ERROR));
+        } catch (\Throwable $e) {
+            $this->recordError($e);
+        } finally {
+            $this->handlerDepth--;
+        }
+    }
+
+    private function recordError(\Throwable $e): void
+    {
+        $this->lastError = $e;
+
+        $errorHandler = $this->config->errorHandler;
+        if ($errorHandler !== null) {
+            $errorHandler($this, $e);
+        }
     }
 }

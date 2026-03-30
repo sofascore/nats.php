@@ -24,6 +24,8 @@ interface ServiceInterface
 
     public function isStopped(): bool;
 
+    public function lastError(): ?\Throwable;
+
     public function id(): string;
 
     public function name(): string;

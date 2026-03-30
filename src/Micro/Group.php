@@ -33,6 +33,8 @@ final class Group implements GroupInterface
             metadata: $config->metadata,
             queueGroup: $queueGroup,
             queueGroupDisabled: $queueGroupDisabled,
+            pendingMsgLimit: $config->pendingMsgLimit,
+            pendingBytesLimit: $config->pendingBytesLimit,
         );
 
         $this->service->addEndpoint($name, $handler, $endpointConfig);

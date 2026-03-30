@@ -12,7 +12,6 @@ readonly class ServiceConfig
         public ?string $description = null,
         /** @var array<string, string> */
         public array $metadata = [],
-        public ?EndpointConfig $endpoint = null,
         public ?string $queueGroup = null,
         public bool $queueGroupDisabled = false,
         public ?\Closure $statsHandler = null,

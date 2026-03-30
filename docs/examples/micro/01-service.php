@@ -1,10 +1,11 @@
-<?php
+<?php declare(strict_types=1);
 
 /**
  * Micro Service API - microservices framework built on NATS.
  *
  * Automatically registers discovery subjects ($SRV.PING/INFO/STATS),
- * supports endpoint grouping, queue groups, statistics.
+ * supports endpoint grouping, queue groups, statistics, runtime error visibility,
+ * and graceful service shutdown.
  */
 
 require_once __DIR__ . '/../../../vendor/autoload.php';
@@ -27,17 +28,17 @@ $svc = Service::create($conn, new ServiceConfig(
     description: 'Calculator microservice',
     metadata: ['author' => 'team-php'],
     queueGroup: 'q',  // Load balancing
-    errorHandler: function ($service, \Throwable $e) {
+    errorHandler: function ($service, \Throwable $e): void {
         echo "[SVC ERROR] {$e->getMessage()}\n";
     },
-    doneHandler: function ($service) {
+    doneHandler: function ($service): void {
         echo "[SVC] Service stopped.\n";
     },
 ));
 
 // --- Adding endpoints (Closure) ---
 
-$svc->addEndpoint('add', function (RequestInterface $req) {
+$svc->addEndpoint('add', function (RequestInterface $req): void {
     $data = json_decode($req->data(), true);
     $result = ($data['a'] ?? 0) + ($data['b'] ?? 0);
     $req->respondJson(['result' => $result]);
@@ -46,7 +47,7 @@ $svc->addEndpoint('add', function (RequestInterface $req) {
     metadata: ['description' => 'Adds two numbers'],
 ));
 
-$svc->addEndpoint('multiply', function (RequestInterface $req) {
+$svc->addEndpoint('multiply', function (RequestInterface $req): void {
     $data = json_decode($req->data(), true);
     $result = ($data['a'] ?? 0) * ($data['b'] ?? 0);
     $req->respondJson(['result' => $result]);
@@ -78,7 +79,7 @@ $svc->addEndpoint('divide', new DivideHandler(), new EndpointConfig(
 // --- Grouping endpoints ---
 
 $mathGroup = $svc->addGroup('math');
-$mathGroup->addEndpoint('sqrt', function (RequestInterface $req) {
+$mathGroup->addEndpoint('sqrt', function (RequestInterface $req): void {
     $data = json_decode($req->data(), true);
     $req->respondJson(['result' => sqrt($data['n'] ?? 0)]);
 });
@@ -86,7 +87,7 @@ $mathGroup->addEndpoint('sqrt', function (RequestInterface $req) {
 
 // Nested groups
 $advancedGroup = $mathGroup->addGroup('advanced');
-$advancedGroup->addEndpoint('factorial', function (RequestInterface $req) {
+$advancedGroup->addEndpoint('factorial', function (RequestInterface $req): void {
     $data = json_decode($req->data(), true);
     $n = $data['n'] ?? 0;
     $result = 1;
@@ -135,10 +136,14 @@ foreach ($stats->endpoints as $ep) {
 }
 
 // --- Reset statistics ---
+// reset() starts a new stats window and clears the current lastError()
 
 $svc->reset();
+$lastError = $svc->lastError();
+echo "Last error: " . ($lastError?->getMessage() ?? 'none') . "\n";
 
 // --- Graceful stop ---
+// stop() drains service subscriptions before shutdown.
 
 $svc->stop();
 echo "Stopped: " . ($svc->isStopped() ? 'yes' : 'no') . "\n";

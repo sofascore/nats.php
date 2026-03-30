@@ -56,7 +56,7 @@ For full runnable scripts grouped by feature, see the example files below. That 
 | **JetStream Publish** | Synchronous publish acknowledgements, deduplication (msgId), per-message TTL, optimistic concurrency, retry, stallWait |
 | **Key-Value Store** | Put, get, getRevision, create (CAS + TTL), update (CAS), delete, purge (+ TTL), purgeDeletes, history, watch, watchFiltered, listKeys, listKeysFiltered, bucket CRUD |
 | **Object Store** | Put (bytes/string/file), get, getInfo, delete, list (+ showDeleted), addLink, addBucketLink, seal, watch, chunked transfer, metadata, compression |
-| **Micro Services** | Endpoints, groups, discovery ($SRV.PING/INFO/STATS), statistics, pending limits, handler classes |
+| **Micro Services** | Endpoints, groups, discovery ($SRV.PING/INFO/STATS), statistics, pending limits, graceful stop, runtime error visibility, handler classes |
 
 ## Architecture
 
@@ -496,6 +496,12 @@ $math->addEndpoint('sqrt', function (RequestInterface $req) {
 // Auto-discovery: $SRV.PING, $SRV.INFO.calculator, $SRV.STATS.calculator
 $info = $svc->info();
 $stats = $svc->stats();
+
+// reset() starts a new stats window; lastError() exposes the latest runtime failure
+$svc->reset();
+$lastError = $svc->lastError();
+
+// stop() drains service subscriptions before shutdown
 $svc->stop();
 ```
 
