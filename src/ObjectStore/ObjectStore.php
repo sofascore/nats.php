@@ -744,9 +744,8 @@ final class ObjectStore implements ObjectStoreInterface
         $stream = $this->js->stream($this->streamName());
 
         foreach ($this->metaSubjectCandidates($name) as $metaSubject) {
-            try {
-                $rawMsg = $stream->getLastMessageForSubject($metaSubject);
-            } catch (\Throwable) {
+            $rawMsg = $stream->tryGetLastMessageForSubject($metaSubject);
+            if ($rawMsg === null) {
                 continue;
             }
 
