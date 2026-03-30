@@ -415,9 +415,6 @@ final class OrderedConsumer implements ConsumerInterface
     {
         $attempts = 0;
         $maxResetAttempts = $this->config->maxResetAttempts;
-        if ($maxResetAttempts !== null && $maxResetAttempts <= 0) {
-            $maxResetAttempts = null;
-        }
         $lastError = null;
 
         while ($maxResetAttempts === null || $attempts < $maxResetAttempts) {

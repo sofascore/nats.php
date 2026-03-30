@@ -20,5 +20,9 @@ readonly class OrderedConsumerConfig
         public float $inactiveThreshold = 300.0,
         public bool $headersOnly = false,
         public ?int $maxResetAttempts = null,
-    ) {}
+    ) {
+        if ($this->maxResetAttempts !== null && $this->maxResetAttempts <= 0) {
+            throw new \InvalidArgumentException('maxResetAttempts must be greater than 0');
+        }
+    }
 }
