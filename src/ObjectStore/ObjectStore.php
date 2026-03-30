@@ -594,28 +594,17 @@ final class ObjectStore implements ObjectStoreInterface
      */
     private function getObjectInfoRecord(string $name, bool $showDeleted = false): array
     {
-        $stream = $this->js->stream($this->streamName());
-
-        foreach ($this->metaSubjectCandidates($name) as $metaSubject) {
-            try {
-                $rawMsg = $stream->getLastMessageForSubject($metaSubject);
-            } catch (\Throwable) {
-                continue;
-            }
-
-            $info = $this->decodeObjectInfo($rawMsg->data);
-            if ($info->name !== $name) {
-                continue;
-            }
-
-            if (!$showDeleted && $info->deleted) {
-                throw new NatsException("Object not found: {$name}");
-            }
-
-            return [$info, $metaSubject];
+        $record = $this->findObjectInfoRecord($name);
+        if ($record === null) {
+            throw new NatsException("Object not found: {$name}");
         }
 
-        throw new NatsException("Object not found: {$name}");
+        [$info] = $record;
+        if (!$showDeleted && $info->deleted) {
+            throw new NatsException("Object not found: {$name}");
+        }
+
+        return $record;
     }
 
     private function encodeName(string $name): string
@@ -722,22 +711,14 @@ final class ObjectStore implements ObjectStoreInterface
 
     private function existingMetaSubjectOrNull(string $name): ?string
     {
-        try {
-            [, $metaSubject] = $this->getObjectInfoRecord($name, showDeleted: true);
-            return $metaSubject;
-        } catch (\Throwable) {
-            return null;
-        }
+        $record = $this->findObjectInfoRecord($name);
+        return $record[1] ?? null;
     }
 
     private function activeObjectExists(string $name): bool
     {
-        try {
-            $this->getObjectInfo($name);
-            return true;
-        } catch (NatsException) {
-            return false;
-        }
+        $record = $this->findObjectInfoRecord($name);
+        return $record !== null && !$record[0]->deleted;
     }
 
     private function purgeLegacyMetaSubjectIfNeeded(string $name, ?string $existingMetaSubject): void
@@ -753,6 +734,29 @@ final class ObjectStore implements ObjectStoreInterface
         } catch (\Throwable) {
             // Best effort cleanup for legacy metadata subjects.
         }
+    }
+
+    /**
+     * @return array{ObjectInfo, string}|null
+     */
+    private function findObjectInfoRecord(string $name): ?array
+    {
+        $stream = $this->js->stream($this->streamName());
+
+        foreach ($this->metaSubjectCandidates($name) as $metaSubject) {
+            try {
+                $rawMsg = $stream->getLastMessageForSubject($metaSubject);
+            } catch (\Throwable) {
+                continue;
+            }
+
+            $info = $this->decodeObjectInfo($rawMsg->data);
+            if ($info->name === $name) {
+                return [$info, $metaSubject];
+            }
+        }
+
+        return null;
     }
 
     /**
