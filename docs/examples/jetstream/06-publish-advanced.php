@@ -3,8 +3,7 @@
 /**
  * Advanced JetStream publishing options.
  *
- * Demonstrates: publishAsync lifecycle (publishAsyncPending, publishAsyncComplete,
- * cleanupPublisher), expectLastMsgId, expectLastSequenceForSubject,
+ * Demonstrates: expectLastMsgId, expectLastSequenceForSubject,
  * stallWait, msgTtl (per-message TTL), publishMessage with headers.
  */
 
@@ -154,54 +153,7 @@ $ack = $js->publishMessage(
 );
 echo "publishMessage with msg ID: seq={$ack->sequence}\n";
 
-// --- 9. Async publish lifecycle ---
-// publishAsync() is "send now, observe ACK later".
-// ACKs arrive only while the connection is being processed.
-// You do not need any extra runtime here; process() is enough.
-
-// Send multiple messages asynchronously
-$futures = [];
-for ($i = 1; $i <= 10; $i++) {
-    $futures[] = $js->publishAsync(
-        'events.batch',
-        json_encode(['batch_item' => $i]),
-        PublishOptions::msgId("batch-{$i}"),
-    );
-}
-
-// Check how many are pending
-echo "Async pending: {$js->publishAsyncPending()}\n";
-echo "Async complete: " . ($js->publishAsyncComplete() ? 'yes' : 'no') . "\n";
-
-// Process responses
-// In a real app this can be part of your regular connection loop.
-$conn->flush();
-$conn->process(2.0);
-
-// Check results
-$successCount = 0;
-$errorCount = 0;
-foreach ($futures as $future) {
-    if ($future->isComplete()) {
-        $err = $future->error();
-        if ($err !== null) {
-            echo "Async error: {$err->getMessage()}\n";
-            $errorCount++;
-        } else {
-            $ack = $future->ok();
-            $successCount++;
-        }
-    }
-}
-
-echo "Async results: {$successCount} ok, {$errorCount} errors\n";
-echo "All complete: " . ($js->publishAsyncComplete() ? 'yes' : 'no') . "\n";
-
-// Clean up completed futures from memory
-$js->cleanupPublisher();
-echo "Publisher cleanup done, pending: {$js->publishAsyncPending()}\n";
-
-// --- 10. Combining multiple PublishOptions ---
+// --- 9. Combining multiple PublishOptions ---
 
 $ack = $js->publish(
     'events.combined',

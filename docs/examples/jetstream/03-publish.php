@@ -3,7 +3,7 @@
 /**
  * JetStream Publish - advanced publishing options.
  *
- * Deduplication, optimistic concurrency, async publish, retry.
+ * Deduplication, optimistic concurrency, retry.
  */
 
 require_once __DIR__ . '/../../../vendor/autoload.php';
@@ -73,25 +73,6 @@ $ack = $js->publish(
     PublishOptions::retryWait(0.5),
 );
 echo "Multi-option publish: seq={$ack->sequence}\n";
-
-// --- Async publish ---
-// publishAsync() only sends the request and returns a future.
-// The future completes once the connection processes incoming replies.
-// No extra runtime is required here - calling process() is enough.
-
-$future1 = $js->publishAsync('orders.new', '{"id": 5}');
-$future2 = $js->publishAsync('orders.new', '{"id": 6}');
-$future3 = $js->publishAsync('orders.new', '{"id": 7}');
-
-// Do something else while the publish ACKs are coming back...
-// In a larger app this can be your main loop or wait().
-$conn->process(0.5);
-
-// Check results
-if ($future1->isComplete()) {
-    $ack = $future1->ok();
-    echo "Async 1: seq={$ack->sequence}\n";
-}
 
 // Cleanup
 $js->deleteStream('ORDERS');

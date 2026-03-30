@@ -43,43 +43,6 @@ final class PublishExtendedTest extends TestCase
         $this->conn->close();
     }
 
-    public function testPublishAsyncPending(): void
-    {
-        $prefix = strtolower($this->streamName);
-
-        // Publish several messages asynchronously
-        $futures = [];
-        for ($i = 0; $i < 5; $i++) {
-            $futures[] = $this->js->publishAsync("{$prefix}.async", "msg{$i}");
-        }
-
-        // At least some should be pending before processing
-        $initialPending = $this->js->publishAsyncPending();
-        self::assertGreaterThanOrEqual(0, $initialPending);
-        self::assertFalse($this->js->publishAsyncComplete() && $initialPending > 0);
-
-        // Process the event loop to receive acks
-        for ($i = 0; $i < 20; $i++) {
-            $this->conn->process(0.1);
-            if ($this->js->publishAsyncComplete()) {
-                break;
-            }
-        }
-
-        self::assertTrue($this->js->publishAsyncComplete());
-        self::assertSame(0, $this->js->publishAsyncPending());
-
-        // Verify all futures resolved successfully
-        foreach ($futures as $future) {
-            self::assertTrue($future->isComplete());
-            $ack = $future->ok();
-            self::assertSame($this->streamName, $ack->stream);
-        }
-
-        // Cleanup internal tracking
-        $this->js->cleanupPublisher();
-    }
-
     public function testExpectLastMsgId(): void
     {
         $prefix = strtolower($this->streamName);

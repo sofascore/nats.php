@@ -18,7 +18,6 @@ use Sofascore\Nats\JetStream\Consumer\PushConsumer;
 use Sofascore\Nats\JetStream\Consumer\PushConsumerInterface;
 use Sofascore\Nats\JetStream\Error\JetStreamException;
 use Sofascore\Nats\JetStream\Publish\PubAck;
-use Sofascore\Nats\JetStream\Publish\PubAckFuture;
 use Sofascore\Nats\JetStream\Publish\PublishOptions;
 use Sofascore\Nats\JetStream\Stream\Stream;
 use Sofascore\Nats\JetStream\Stream\StreamConfig;
@@ -29,9 +28,6 @@ use Sofascore\Nats\NatsException;
 
 final class JetStreamContext
 {
-    /** @var list<PubAckFuture> */
-    private array $pendingFutures = [];
-
     /** @internal */
     public function __construct(
         private readonly Connection $conn,
@@ -352,119 +348,6 @@ final class JetStreamContext
         }
 
         return PubAck::fromArray($response);
-    }
-
-    public function publishAsync(string $subject, string $data = '', PublishOptions ...$opts): PubAckFuture
-    {
-        $headers = new Headers();
-        PublishOptions::applyToHeaders($headers, array_values($opts));
-
-        $msg = $headers->count() > 0
-            ? new Message(subject: $subject, data: $data, headers: $headers)
-            : new Message(subject: $subject, data: $data);
-
-        $future = new PubAckFuture($msg);
-        $this->pendingFutures[] = $future;
-
-        $inbox = $this->conn->newInbox();
-        $sub = $this->conn->subscribe($inbox, function (Message $reply) use ($future, &$sub): void {
-            try {
-                $response = T::stringKeyArray(json_decode($reply->data, true, 512, JSON_THROW_ON_ERROR));
-                if (isset($response['error'])) {
-                    $future->reject(JetStreamException::fromApiResponse($response));
-                } else {
-                    $future->resolve(PubAck::fromArray($response));
-                }
-            } catch (\Throwable $e) {
-                $future->reject($e);
-            }
-            if ($sub !== null) { $sub->unsubscribe(); }
-        });
-        $sub->autoUnsubscribe(1);
-
-        $this->conn->publish($subject, $data, $inbox);
-
-        return $future;
-    }
-
-    /**
-     * Publish a Message object asynchronously with headers support.
-     * Matches Go client PublishMsgAsync.
-     */
-    public function publishAsyncMessage(Message $msg, PublishOptions ...$opts): PubAckFuture
-    {
-        $headers = $msg->headers !== null ? clone $msg->headers : new Headers();
-        PublishOptions::applyToHeaders($headers, array_values($opts));
-
-        $publishMsg = $headers->count() > 0
-            ? new Message(subject: $msg->subject, data: $msg->data, headers: $headers)
-            : new Message(subject: $msg->subject, data: $msg->data);
-
-        $future = new PubAckFuture($publishMsg);
-        $this->pendingFutures[] = $future;
-
-        $inbox = $this->conn->newInbox();
-        $sub = $this->conn->subscribe($inbox, function (Message $reply) use ($future, &$sub): void {
-            try {
-                $response = T::stringKeyArray(json_decode($reply->data, true, 512, JSON_THROW_ON_ERROR));
-                if (isset($response['error'])) {
-                    $future->reject(JetStreamException::fromApiResponse($response));
-                } else {
-                    $future->resolve(PubAck::fromArray($response));
-                }
-            } catch (\Throwable $e) {
-                $future->reject($e);
-            }
-            if ($sub !== null) { $sub->unsubscribe(); }
-        });
-        $sub->autoUnsubscribe(1);
-
-        $this->conn->publishMessage(new Message(
-            subject: $msg->subject,
-            data: $msg->data,
-            replyTo: $inbox,
-            headers: $headers->count() > 0 ? $headers : null,
-        ));
-
-        return $future;
-    }
-
-    /**
-     * Returns the number of pending (incomplete) async publish operations.
-     */
-    public function publishAsyncPending(): int
-    {
-        $pending = 0;
-        foreach ($this->pendingFutures as $future) {
-            if (!$future->isComplete()) {
-                $pending++;
-            }
-        }
-        return $pending;
-    }
-
-    /**
-     * Returns true if all tracked async publish operations have completed.
-     */
-    public function publishAsyncComplete(): bool
-    {
-        foreach ($this->pendingFutures as $future) {
-            if (!$future->isComplete()) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    /**
-     * Remove completed futures from internal tracking to free memory.
-     */
-    public function cleanupPublisher(): void
-    {
-        $this->pendingFutures = array_values(array_filter(
-            $this->pendingFutures,
-            static fn(PubAckFuture $f) => !$f->isComplete(),
-        ));
     }
 
     // --- KeyValue ---
