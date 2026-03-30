@@ -430,7 +430,21 @@ final class Service implements ServiceInterface
         }
 
         $this->pendingStopCleanup = false;
-        $this->finalizeStoppedSubscriptions($this->serviceSubscriptions());
+        $subs = $this->serviceSubscriptions();
+
+        if ($this->connection->isConnected()) {
+            try {
+                $this->connection->flush(0.5);
+            } catch (\Throwable $e) {
+                $this->recordError($e);
+                foreach ($subs as $sub) {
+                    $sub->unsubscribe();
+                }
+                return;
+            }
+        }
+
+        $this->finalizeStoppedSubscriptions($subs);
     }
 
     /**

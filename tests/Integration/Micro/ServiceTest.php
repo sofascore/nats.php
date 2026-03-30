@@ -354,6 +354,39 @@ final class ServiceTest extends TestCase
         self::assertSame(0, $this->conn->numSubscriptions());
     }
 
+    public function testStopInsideHandlerFlushesReplyAndCleanup(): void
+    {
+        $client = Connection::connect(self::natsUrl());
+
+        try {
+            $svc = Service::create($this->conn, new ServiceConfig(
+                name: 'self-stop-svc',
+                version: '1.0.0',
+            ));
+
+            $svc->addEndpoint('bye', function (RequestInterface $req) use ($svc): void {
+                $req->respond('bye');
+                $svc->stop();
+            }, new EndpointConfig(subject: 'svc.self.stop'));
+
+            $this->conn->flush();
+
+            $replyInbox = $client->newInbox();
+            $replySub = $client->subscribeSync($replyInbox);
+
+            $client->publish('svc.self.stop', '', $replyInbox);
+            $client->flush();
+            $this->conn->process(0.5);
+            $reply = $replySub->nextMessage(0.5);
+
+            self::assertSame('bye', $reply->data);
+            self::assertTrue($svc->isStopped());
+            self::assertSame(0, $this->conn->numSubscriptions());
+        } finally {
+            $client->close();
+        }
+    }
+
     public function testHandlerFailureIsExposedThroughLastErrorAndStats(): void
     {
         $svc = Service::create($this->conn, new ServiceConfig(
