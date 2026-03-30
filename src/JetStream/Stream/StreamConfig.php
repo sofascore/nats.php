@@ -49,6 +49,9 @@ readonly class StreamConfig
         public ?StreamConsumerLimits $consumerLimits = null,
         public bool $allowMsgTtl = false,
         public ?int $subjectDeleteMarkerTtl = null,
+        public bool $allowAtomicPublish = false,
+        public bool $allowMsgCounter = false,
+        public bool $allowMsgSchedules = false,
     ) {}
 
     /**
@@ -90,6 +93,9 @@ readonly class StreamConfig
         if ($this->consumerLimits !== null) { $data['consumer_limits'] = $this->consumerLimits->toArray(); }
         if ($this->allowMsgTtl) { $data['allow_msg_ttl'] = true; }
         if ($this->subjectDeleteMarkerTtl !== null) { $data['subject_delete_marker_ttl'] = $this->subjectDeleteMarkerTtl * 1_000_000_000; }
+        if ($this->allowAtomicPublish) { $data['allow_atomic'] = true; }
+        if ($this->allowMsgCounter) { $data['allow_msg_counter'] = true; }
+        if ($this->allowMsgSchedules) { $data['allow_msg_schedules'] = true; }
 
         return $data;
     }
@@ -136,6 +142,9 @@ readonly class StreamConfig
             consumerLimits: isset($data['consumer_limits']) ? StreamConsumerLimits::fromArray(T::stringKeyArray($data['consumer_limits'])) : null,
             allowMsgTtl: T::bool($data['allow_msg_ttl'] ?? false),
             subjectDeleteMarkerTtl: isset($data['subject_delete_marker_ttl']) ? (int) (T::int($data['subject_delete_marker_ttl']) / 1_000_000_000) : null,
+            allowAtomicPublish: T::bool($data['allow_atomic'] ?? false),
+            allowMsgCounter: T::bool($data['allow_msg_counter'] ?? false),
+            allowMsgSchedules: T::bool($data['allow_msg_schedules'] ?? false),
         );
     }
 }
