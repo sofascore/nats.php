@@ -272,6 +272,17 @@ final class PushConsumerTest extends TestCase
         self::assertSame(5, $updated->info()->config->maxDeliver);
     }
 
+    public function testStreamHandleUpdatePushConsumerRequiresIdentifier(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('updatePushConsumer requires a consumer name or durable identifier');
+
+        $this->stream->updatePushConsumer(new ConsumerConfig(
+            deliverSubject: Inbox::generate(),
+            ackPolicy: AckPolicy::Explicit,
+        ));
+    }
+
     public function testStreamHandleCreateOrUpdatePushConsumer(): void
     {
         $deliverSubject = Inbox::generate();
