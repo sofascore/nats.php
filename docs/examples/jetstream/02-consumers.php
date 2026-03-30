@@ -71,7 +71,7 @@ try {
     echo "No messages.\n";
 }
 
-// --- 5. Messages - iterator-based consumption ---
+// --- 5. Poll - iterator-based consumption ---
 // poll() is a blocking iterator over repeated fetch() calls.
 // It is not a background worker.
 
@@ -92,7 +92,7 @@ foreach ($msgs as $msg) {
     }
 }
 
-echo "Messages context closed: " . ($msgs->isClosed() ? 'yes' : 'no') . "\n";
+echo "Poll context closed: " . ($msgs->isClosed() ? 'yes' : 'no') . "\n";
 
 // Poll one message at a time without exception-driven timeout handling.
 // If maxMessages is greater than 1, tryNext() drains an internal buffer first.
@@ -106,7 +106,7 @@ while (($msg = $poller->tryNext()) !== null) {
     $msg->ack();
 }
 
-// --- 6. Consume - callback pattern ---
+// --- 6. ConsumeLoop - callback pattern ---
 // consumeLoop() prepares a foreground callback loop.
 // You start it explicitly via $ctx->run() from your own process or loop.
 
