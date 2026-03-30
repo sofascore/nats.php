@@ -13,7 +13,6 @@ use Sofascore\Nats\Subscription;
 
 final class PushConsumer implements PushConsumerInterface
 {
-    private ?ConsumerInfo $cachedInfo = null;
     private ?Subscription $subscription = null;
     private PushConsumerStatus $status = PushConsumerStatus::Unsubscribed;
     private ?PushConsumeContext $consumeContext = null;
@@ -27,6 +26,7 @@ final class PushConsumer implements PushConsumerInterface
         private readonly JetStreamContext $js,
         private readonly string $stream,
         private readonly ConsumerConfig $config,
+        private ?ConsumerInfo $cachedInfo = null,
     ) {
         if ($this->config->deliverSubject === null) {
             throw new NatsException('Push consumer requires a deliver_subject in configuration');
@@ -95,11 +95,8 @@ final class PushConsumer implements PushConsumerInterface
         return $this->cachedInfo;
     }
 
-    public function cachedInfo(): ConsumerInfo
+    public function cachedInfo(): ?ConsumerInfo
     {
-        if ($this->cachedInfo === null) {
-            return $this->info();
-        }
         return $this->cachedInfo;
     }
 

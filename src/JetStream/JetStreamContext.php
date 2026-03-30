@@ -163,7 +163,12 @@ final class JetStreamContext
             "CONSUMER.CREATE.{$stream}",
             ['stream_name' => $stream, 'config' => $config->toArray()],
         );
-        return new Consumer($this, $stream, ConsumerConfig::fromArray(T::stringKeyArray($data['config'] ?? [])));
+        return new Consumer(
+            $this,
+            $stream,
+            ConsumerConfig::fromArray(T::stringKeyArray($data['config'] ?? [])),
+            ConsumerInfo::fromArray(T::stringKeyArray($data)),
+        );
     }
 
     /**
@@ -175,7 +180,12 @@ final class JetStreamContext
             ? "CONSUMER.CREATE.{$stream}.{$config->name}"
             : "CONSUMER.CREATE.{$stream}";
         $data = $this->apiRequest($op, ['stream_name' => $stream, 'config' => $config->toArray()]);
-        return new Consumer($this, $stream, ConsumerConfig::fromArray(T::stringKeyArray($data['config'] ?? [])));
+        return new Consumer(
+            $this,
+            $stream,
+            ConsumerConfig::fromArray(T::stringKeyArray($data['config'] ?? [])),
+            ConsumerInfo::fromArray(T::stringKeyArray($data)),
+        );
     }
 
     /**
@@ -184,7 +194,12 @@ final class JetStreamContext
     public function consumer(string $stream, string $name): ConsumerInterface
     {
         $data = $this->apiRequest("CONSUMER.INFO.{$stream}.{$name}");
-        return new Consumer($this, $stream, ConsumerConfig::fromArray(T::stringKeyArray($data['config'] ?? [])));
+        return new Consumer(
+            $this,
+            $stream,
+            ConsumerConfig::fromArray(T::stringKeyArray($data['config'] ?? [])),
+            ConsumerInfo::fromArray(T::stringKeyArray($data)),
+        );
     }
 
     public function orderedConsumer(string $stream, ?OrderedConsumerConfig $config = null): ConsumerInterface
@@ -212,7 +227,12 @@ final class JetStreamContext
             $op,
             ['stream_name' => $stream, 'config' => $config->toArray()],
         );
-        return new PushConsumer($this, $stream, ConsumerConfig::fromArray(T::stringKeyArray($data['config'] ?? [])));
+        return new PushConsumer(
+            $this,
+            $stream,
+            ConsumerConfig::fromArray(T::stringKeyArray($data['config'] ?? [])),
+            ConsumerInfo::fromArray(T::stringKeyArray($data)),
+        );
     }
 
     public function updatePushConsumer(string $stream, ConsumerConfig $config): PushConsumerInterface
@@ -225,7 +245,12 @@ final class JetStreamContext
             "CONSUMER.CREATE.{$stream}.{$consumerName}",
             ['stream_name' => $stream, 'config' => $config->toArray()],
         );
-        return new PushConsumer($this, $stream, ConsumerConfig::fromArray(T::stringKeyArray($data['config'] ?? [])));
+        return new PushConsumer(
+            $this,
+            $stream,
+            ConsumerConfig::fromArray(T::stringKeyArray($data['config'] ?? [])),
+            ConsumerInfo::fromArray(T::stringKeyArray($data)),
+        );
     }
 
     public function createOrUpdatePushConsumer(string $stream, ConsumerConfig $config): PushConsumerInterface
@@ -235,13 +260,23 @@ final class JetStreamContext
             ? "CONSUMER.CREATE.{$stream}.{$consumerName}"
             : "CONSUMER.CREATE.{$stream}";
         $data = $this->apiRequest($op, ['stream_name' => $stream, 'config' => $config->toArray()]);
-        return new PushConsumer($this, $stream, ConsumerConfig::fromArray(T::stringKeyArray($data['config'] ?? [])));
+        return new PushConsumer(
+            $this,
+            $stream,
+            ConsumerConfig::fromArray(T::stringKeyArray($data['config'] ?? [])),
+            ConsumerInfo::fromArray(T::stringKeyArray($data)),
+        );
     }
 
     public function pushConsumer(string $stream, string $name): PushConsumerInterface
     {
         $data = $this->apiRequest("CONSUMER.INFO.{$stream}.{$name}");
-        return new PushConsumer($this, $stream, ConsumerConfig::fromArray(T::stringKeyArray($data['config'] ?? [])));
+        return new PushConsumer(
+            $this,
+            $stream,
+            ConsumerConfig::fromArray(T::stringKeyArray($data['config'] ?? [])),
+            ConsumerInfo::fromArray(T::stringKeyArray($data)),
+        );
     }
 
     // --- Publishing ---

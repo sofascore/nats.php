@@ -13,13 +13,12 @@ use Sofascore\Nats\TimeoutException;
 
 final class Consumer implements ConsumerInterface
 {
-    private ?ConsumerInfo $cachedInfo = null;
-
     /** @internal */
     public function __construct(
         private readonly JetStreamContext $js,
         private readonly string $stream,
         private readonly ConsumerConfig $config,
+        private ?ConsumerInfo $cachedInfo = null,
     ) {}
 
     public function fetch(int $batch, ?FetchOptions $opts = null): MessageBatch
@@ -223,11 +222,8 @@ final class Consumer implements ConsumerInterface
         return $this->cachedInfo;
     }
 
-    public function cachedInfo(): ConsumerInfo
+    public function cachedInfo(): ?ConsumerInfo
     {
-        if ($this->cachedInfo === null) {
-            return $this->info();
-        }
         return $this->cachedInfo;
     }
 

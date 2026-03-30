@@ -29,5 +29,11 @@ interface ConsumerInterface
 
     public function info(): ConsumerInfo;
 
-    public function cachedInfo(): ConsumerInfo;
+    /**
+     * Returns the cached consumer info without making a server request.
+     *
+     * Handles created without an initial info snapshot return null until info()
+     * is called or the handle is otherwise hydrated.
+     */
+    public function cachedInfo(): ?ConsumerInfo;
 }

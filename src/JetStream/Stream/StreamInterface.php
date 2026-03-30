@@ -58,5 +58,10 @@ interface StreamInterface
 
     public function info(bool $deletedDetails = false, ?string $subjectFilter = null): StreamInfo;
 
+    /**
+     * Returns the cached stream info without making a server request.
+     *
+     * Stream handles are created with an initial info snapshot already loaded.
+     */
     public function cachedInfo(): StreamInfo;
 }
