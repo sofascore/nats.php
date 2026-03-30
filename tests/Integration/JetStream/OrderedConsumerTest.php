@@ -69,6 +69,31 @@ final class OrderedConsumerTest extends TestCase
         self::assertNotSame($initialName, $consumer->cachedInfo()->name);
     }
 
+    public function testOrderedConsumerCachedInfoIsCacheOnly(): void
+    {
+        $byFetch = $this->stream->orderedConsumer(new OrderedConsumerConfig(
+            deliverPolicy: DeliveryPolicy::All,
+        ));
+        self::assertNull($byFetch->cachedInfo());
+
+        $first = $byFetch->next(1.0);
+        self::assertSame(1, $first->metadata()->streamSequence);
+
+        $fetchInfo = $byFetch->cachedInfo();
+        self::assertNotNull($fetchInfo);
+        self::assertSame('TEST_ORDERED_CONSUMER', $fetchInfo->stream);
+        self::assertSame($fetchInfo->name, $first->metadata()->consumer);
+
+        $byInfo = $this->stream->orderedConsumer(new OrderedConsumerConfig(
+            deliverPolicy: DeliveryPolicy::All,
+        ));
+        self::assertNull($byInfo->cachedInfo());
+
+        $info = $byInfo->info();
+        self::assertSame($info->name, $byInfo->cachedInfo()?->name);
+        self::assertSame('TEST_ORDERED_CONSUMER', $info->stream);
+    }
+
     public function testOrderedConsumerRecreatesWhenSequenceTrackingDetectsLoss(): void
     {
         $consumer = $this->stream->orderedConsumer(new OrderedConsumerConfig(

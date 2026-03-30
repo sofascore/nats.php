@@ -7,6 +7,7 @@ namespace Sofascore\Nats\JetStream\Stream;
 use Sofascore\Nats\Internal\TypeCast as T;
 use Sofascore\Nats\JetStream\Consumer\Consumer;
 use Sofascore\Nats\JetStream\Consumer\ConsumerConfig;
+use Sofascore\Nats\JetStream\Consumer\ConsumerInfo;
 use Sofascore\Nats\JetStream\Consumer\ConsumerInterface;
 use Sofascore\Nats\JetStream\Consumer\ConsumerPauseResponse;
 use Sofascore\Nats\JetStream\Consumer\OrderedConsumer;
@@ -34,7 +35,12 @@ final class Stream implements StreamInterface
             "CONSUMER.CREATE.{$this->name}",
             ['stream_name' => $this->name, 'config' => $config->toArray()],
         );
-        return new Consumer($this->js, $this->name, ConsumerConfig::fromArray(T::stringKeyArray($data['config'] ?? [])));
+        return new Consumer(
+            $this->js,
+            $this->name,
+            ConsumerConfig::fromArray(T::stringKeyArray($data['config'] ?? [])),
+            ConsumerInfo::fromArray(T::stringKeyArray($data)),
+        );
     }
 
     public function createOrUpdateConsumer(ConsumerConfig $config): ConsumerInterface
@@ -47,7 +53,12 @@ final class Stream implements StreamInterface
             $operation,
             ['stream_name' => $this->name, 'config' => $config->toArray()],
         );
-        return new Consumer($this->js, $this->name, ConsumerConfig::fromArray(T::stringKeyArray($data['config'] ?? [])));
+        return new Consumer(
+            $this->js,
+            $this->name,
+            ConsumerConfig::fromArray(T::stringKeyArray($data['config'] ?? [])),
+            ConsumerInfo::fromArray(T::stringKeyArray($data)),
+        );
     }
 
     public function updateConsumer(ConsumerConfig $config): ConsumerInterface
@@ -58,7 +69,12 @@ final class Stream implements StreamInterface
     public function consumer(string $name): ConsumerInterface
     {
         $data = $this->js->apiRequest("CONSUMER.INFO.{$this->name}.{$name}");
-        return new Consumer($this->js, $this->name, ConsumerConfig::fromArray(T::stringKeyArray($data['config'] ?? [])));
+        return new Consumer(
+            $this->js,
+            $this->name,
+            ConsumerConfig::fromArray(T::stringKeyArray($data['config'] ?? [])),
+            ConsumerInfo::fromArray(T::stringKeyArray($data)),
+        );
     }
 
     public function orderedConsumer(?OrderedConsumerConfig $config = null): ConsumerInterface

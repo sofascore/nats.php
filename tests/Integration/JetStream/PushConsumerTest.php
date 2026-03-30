@@ -10,6 +10,7 @@ use Sofascore\Nats\Enum\StorageType;
 use Sofascore\Nats\Inbox;
 use Sofascore\Nats\JetStream\Consumer\ConsumerConfig;
 use Sofascore\Nats\JetStream\Consumer\PushConsumeOptions;
+use Sofascore\Nats\JetStream\Consumer\PushConsumer;
 use Sofascore\Nats\JetStream\Consumer\PushConsumerStatus;
 use Sofascore\Nats\JetStream\Error\JetStreamException;
 use Sofascore\Nats\JetStream\Error\PushConsumerException;
@@ -239,6 +240,8 @@ final class PushConsumerTest extends TestCase
 
         self::assertSame('stream-push', $created->name());
         self::assertSame($deliverSubject, $created->deliverSubject());
+        self::assertSame('stream-push', $created->cachedInfo()?->name);
+        self::assertSame($deliverSubject, $created->cachedInfo()?->config->deliverSubject);
 
         $fetched = $this->stream->pushConsumer('stream-push');
         self::assertSame('stream-push', $fetched->name());
@@ -248,6 +251,64 @@ final class PushConsumerTest extends TestCase
 
         $this->expectException(JetStreamException::class);
         $this->stream->pushConsumer('stream-push');
+    }
+
+    public function testCachedInfoHydratesColdPushConsumerHandleOnce(): void
+    {
+        $deliverSubject = Inbox::generate();
+
+        $this->stream->createPushConsumer(new ConsumerConfig(
+            name: 'push-cached-cold',
+            durable: 'push-cached-cold',
+            deliverSubject: $deliverSubject,
+            ackPolicy: AckPolicy::Explicit,
+        ));
+
+        $consumer = new PushConsumer(
+            $this->js,
+            'TEST_PUSH',
+            new ConsumerConfig(
+                name: 'push-cached-cold',
+                durable: 'push-cached-cold',
+                deliverSubject: $deliverSubject,
+                ackPolicy: AckPolicy::Explicit,
+            ),
+        );
+
+        self::assertNull($consumer->cachedInfo());
+
+        $info = $consumer->info();
+        self::assertSame('push-cached-cold', $info->name);
+        self::assertSame($deliverSubject, $info->config->deliverSubject);
+
+        $this->stream->deleteConsumer('push-cached-cold');
+
+        self::assertSame('push-cached-cold', $consumer->cachedInfo()?->name);
+
+        $this->expectException(JetStreamException::class);
+        $consumer->info();
+    }
+
+    public function testStreamPushConsumerLookupSeedsCachedInfo(): void
+    {
+        $deliverSubject = Inbox::generate();
+
+        $this->stream->createPushConsumer(new ConsumerConfig(
+            name: 'push-cached-lookup',
+            durable: 'push-cached-lookup',
+            deliverSubject: $deliverSubject,
+            ackPolicy: AckPolicy::Explicit,
+        ));
+
+        $consumer = $this->stream->pushConsumer('push-cached-lookup');
+        self::assertSame('push-cached-lookup', $consumer->cachedInfo()?->name);
+
+        $this->stream->deleteConsumer('push-cached-lookup');
+
+        $info = $consumer->cachedInfo();
+        self::assertNotNull($info);
+        self::assertSame('push-cached-lookup', $info->name);
+        self::assertSame($deliverSubject, $info->config->deliverSubject);
     }
 
     public function testStreamHandleUpdatePushConsumer(): void

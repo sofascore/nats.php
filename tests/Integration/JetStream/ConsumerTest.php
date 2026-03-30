@@ -9,10 +9,12 @@ use Sofascore\Nats\Connection;
 use Sofascore\Nats\Enum\AckPolicy;
 use Sofascore\Nats\Enum\DeliveryPolicy;
 use Sofascore\Nats\Enum\StorageType;
+use Sofascore\Nats\JetStream\Consumer\Consumer;
 use Sofascore\Nats\JetStream\Consumer\ConsumerConfig;
 use Sofascore\Nats\JetStream\Consumer\MessagePollOptions;
 use Sofascore\Nats\JetStream\Consumer\FetchOptions;
 use Sofascore\Nats\JetStream\Consumer\OrderedConsumerConfig;
+use Sofascore\Nats\JetStream\Error\JetStreamException;
 use Sofascore\Nats\JetStream\JetStreamContext;
 use Sofascore\Nats\JetStream\Stream\StreamConfig;
 use Sofascore\Nats\JetStream\Stream\StreamInterface;
@@ -59,6 +61,8 @@ final class ConsumerTest extends TestCase
             ackPolicy: AckPolicy::Explicit,
             deliverPolicy: DeliveryPolicy::All,
         ));
+
+        self::assertSame('test-consumer-1', $consumer->cachedInfo()?->name);
 
         $info = $consumer->info();
         self::assertSame('TEST_CONSUMER', $info->stream);
@@ -329,6 +333,57 @@ final class ConsumerTest extends TestCase
         self::assertSame('test-info', $info->name);
         self::assertSame(20, $info->numPending);
         self::assertSame(0, $info->numAckPending);
+    }
+
+    public function testCachedInfoHydratesColdConsumerHandleOnce(): void
+    {
+        $this->stream->createOrUpdateConsumer(new ConsumerConfig(
+            name: 'test-cached-cold',
+            durable: 'test-cached-cold',
+            ackPolicy: AckPolicy::Explicit,
+        ));
+
+        $consumer = new Consumer(
+            $this->js,
+            'TEST_CONSUMER',
+            new ConsumerConfig(
+                name: 'test-cached-cold',
+                durable: 'test-cached-cold',
+                ackPolicy: AckPolicy::Explicit,
+            ),
+        );
+
+        self::assertNull($consumer->cachedInfo());
+
+        $info = $consumer->info();
+        self::assertSame('test-cached-cold', $info->name);
+        self::assertSame('TEST_CONSUMER', $info->stream);
+
+        $this->stream->deleteConsumer('test-cached-cold');
+
+        self::assertSame('test-cached-cold', $consumer->cachedInfo()?->name);
+
+        $this->expectException(JetStreamException::class);
+        $consumer->info();
+    }
+
+    public function testStreamConsumerLookupSeedsCachedInfo(): void
+    {
+        $this->stream->createOrUpdateConsumer(new ConsumerConfig(
+            name: 'test-cached-lookup',
+            durable: 'test-cached-lookup',
+            ackPolicy: AckPolicy::Explicit,
+        ));
+
+        $consumer = $this->stream->consumer('test-cached-lookup');
+        self::assertSame('test-cached-lookup', $consumer->cachedInfo()?->name);
+
+        $this->stream->deleteConsumer('test-cached-lookup');
+
+        $info = $consumer->cachedInfo();
+        self::assertNotNull($info);
+        self::assertSame('test-cached-lookup', $info->name);
+        self::assertSame('TEST_CONSUMER', $info->stream);
     }
 
     public function testListConsumers(): void

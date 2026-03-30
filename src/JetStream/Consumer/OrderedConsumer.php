@@ -105,9 +105,9 @@ final class OrderedConsumer implements ConsumerInterface
         }
     }
 
-    public function cachedInfo(): ConsumerInfo
+    public function cachedInfo(): ?ConsumerInfo
     {
-        return $this->getInner()->cachedInfo();
+        return $this->inner?->cachedInfo();
     }
 
     private function getInner(): Consumer
@@ -158,6 +158,7 @@ final class OrderedConsumer implements ConsumerInterface
             $this->js,
             $this->stream,
             ConsumerConfig::fromArray(T::stringKeyArray($data['config'] ?? [])),
+            ConsumerInfo::fromArray(T::stringKeyArray($data)),
         );
     }
 
