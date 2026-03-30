@@ -17,7 +17,12 @@ readonly class OrderedConsumerConfig
         public ?int $optStartSeq = null,
         public ?\DateTimeImmutable $optStartTime = null,
         public ReplayPolicy $replayPolicy = ReplayPolicy::Instant,
+        public float $inactiveThreshold = 300.0,
         public bool $headersOnly = false,
-        public ?float $maxResetAttempts = null,
-    ) {}
+        public ?int $maxResetAttempts = null,
+    ) {
+        if ($this->maxResetAttempts !== null && $this->maxResetAttempts <= 0) {
+            throw new \InvalidArgumentException('maxResetAttempts must be greater than 0');
+        }
+    }
 }
