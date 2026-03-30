@@ -12,7 +12,7 @@ final class ConsumeContext
 
     /** @internal */
     public function __construct(
-        private readonly Consumer $consumer,
+        private readonly ConsumerInterface $consumer,
         private readonly \Closure $handler,
         private readonly ConsumeLoopOptions $options,
     ) {}
