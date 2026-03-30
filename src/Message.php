@@ -12,6 +12,8 @@ readonly class Message
         public ?string $replyTo = null,
         public ?Headers $headers = null,
         private ?Connection $connection = null,
+        private ?\Closure $beforeRespond = null,
+        private ?\Closure $afterRespond = null,
     ) {}
 
     public function size(): int
@@ -31,6 +33,9 @@ readonly class Message
         if ($this->connection === null) {
             throw new NatsException('No connection available for respond');
         }
+        if ($this->beforeRespond !== null) {
+            ($this->beforeRespond)();
+        }
 
         $msg = new self(
             subject: $this->replyTo,
@@ -38,6 +43,10 @@ readonly class Message
             headers: $headers,
         );
         $this->connection->publishMessage($msg);
+
+        if ($this->afterRespond !== null) {
+            ($this->afterRespond)();
+        }
     }
 
     public function hasHeaders(): bool

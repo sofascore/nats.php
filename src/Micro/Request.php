@@ -12,11 +12,22 @@ use Sofascore\Nats\NatsException;
 final class Request implements RequestInterface
 {
     private bool $responded = false;
+    private readonly Message $msg;
+    private readonly Connection $connection;
 
-    public function __construct(
-        private readonly Message $msg,
-        private readonly Connection $connection,
-    ) {}
+    public function __construct(Message $msg, Connection $connection)
+    {
+        $this->connection = $connection;
+        $this->msg = new Message(
+            subject: $msg->subject,
+            data: $msg->data,
+            replyTo: $msg->replyTo,
+            headers: $msg->headers,
+            connection: $connection,
+            beforeRespond: $this->assertCanRespond(...),
+            afterRespond: $this->markResponded(...),
+        );
+    }
 
     public function respond(string $data, ?Headers $headers = null): void
     {
@@ -75,9 +86,7 @@ final class Request implements RequestInterface
             throw new NatsException('No reply subject');
         }
 
-        if ($this->responded) {
-            throw new NatsException('Response already sent');
-        }
+        $this->assertCanRespond();
 
         $response = new Message(
             subject: $this->msg->replyTo,
@@ -85,6 +94,18 @@ final class Request implements RequestInterface
             headers: $headers,
         );
         $this->connection->publishMessage($response);
+        $this->markResponded();
+    }
+
+    private function assertCanRespond(): void
+    {
+        if ($this->responded) {
+            throw new NatsException('Response already sent');
+        }
+    }
+
+    private function markResponded(): void
+    {
         $this->responded = true;
     }
 }

@@ -352,27 +352,29 @@ final class Service implements ServiceInterface
 
     private function handlePing(Message $msg): void
     {
-        $response = [
-            'type' => 'io.nats.micro.v1.ping_response',
-            'name' => $this->config->name,
-            'id' => $this->id,
-            'version' => $this->config->version,
-        ];
-        if ($this->config->metadata !== []) {
-            $response['metadata'] = $this->config->metadata;
-        }
+        $this->replyControl($msg, function (): array {
+            $response = [
+                'type' => 'io.nats.micro.v1.ping_response',
+                'name' => $this->config->name,
+                'id' => $this->id,
+                'version' => $this->config->version,
+            ];
+            if ($this->config->metadata !== []) {
+                $response['metadata'] = $this->config->metadata;
+            }
 
-        $this->replyControl($msg, $response);
+            return $response;
+        });
     }
 
     private function handleInfo(Message $msg): void
     {
-        $this->replyControl($msg, $this->info()->toArray());
+        $this->replyControl($msg, fn (): array => $this->info()->toArray());
     }
 
     private function handleStats(Message $msg): void
     {
-        $this->replyControl($msg, $this->stats()->toArray());
+        $this->replyControl($msg, fn (): array => $this->stats()->toArray());
     }
 
     /**
@@ -405,13 +407,14 @@ final class Service implements ServiceInterface
     }
 
     /**
-     * @param array<string, mixed> $payload
+     * @param \Closure(): array<string, mixed> $payloadFactory
      */
-    private function replyControl(Message $msg, array $payload): void
+    private function replyControl(Message $msg, \Closure $payloadFactory): void
     {
         $this->handlerDepth++;
 
         try {
+            $payload = $payloadFactory();
             $msg->respond(json_encode($payload, JSON_THROW_ON_ERROR));
         } catch (\Throwable $e) {
             $this->recordError($e);

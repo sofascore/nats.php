@@ -11,6 +11,7 @@ use Sofascore\Nats\Micro\RequestInterface;
 use Sofascore\Nats\Micro\Service;
 use Sofascore\Nats\Micro\ServiceConfig;
 use Sofascore\Nats\NatsException;
+use Sofascore\Nats\TimeoutException;
 use Sofascore\Nats\Tests\Integration\NatsUrlTrait;
 use PHPUnit\Framework\TestCase;
 
@@ -500,6 +501,47 @@ final class ServiceTest extends TestCase
         self::assertSame([false, true], $states);
 
         $svc->stop();
+    }
+
+    public function testMsgRespondPreventsFallbackErrorReply(): void
+    {
+        $client = Connection::connect(self::natsUrl());
+        $subject = 'svc.msg.respond.' . substr(uniqid(), -6);
+
+        try {
+            $svc = Service::create($this->conn, new ServiceConfig(
+                name: 'msg-respond-svc',
+                version: '1.0.0',
+            ));
+
+            $svc->addEndpoint('reply', function (RequestInterface $req): void {
+                $req->msg()->respond('manual');
+                throw new \RuntimeException('after manual respond');
+            }, new EndpointConfig(subject: $subject));
+
+            $this->conn->flush();
+
+            $replyInbox = $client->newInbox();
+            $replySub = $client->subscribeSync($replyInbox);
+
+            $client->publish($subject, '', $replyInbox);
+            $client->flush();
+            $this->conn->process(0.5);
+            $this->conn->flush();
+
+            $reply = $replySub->nextMessage(0.5);
+            self::assertSame('manual', $reply->data);
+            self::assertSame('after manual respond', $svc->lastError()?->getMessage());
+
+            try {
+                $replySub->nextMessage(0.1);
+                self::fail('Did not expect a fallback error reply');
+            } catch (TimeoutException) {
+                self::assertTrue(true);
+            }
+        } finally {
+            $client->close();
+        }
     }
 
     public function testResponseSendFailureIsObservable(): void

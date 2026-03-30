@@ -8,6 +8,7 @@ use Sofascore\Nats\Connection;
 use Sofascore\Nats\Micro\EndpointConfig;
 use Sofascore\Nats\Micro\Service;
 use Sofascore\Nats\Micro\ServiceConfig;
+use Sofascore\Nats\TimeoutException;
 use Sofascore\Nats\Tests\Integration\NatsUrlTrait;
 use PHPUnit\Framework\TestCase;
 
@@ -78,6 +79,32 @@ final class StatsHandlerTest extends TestCase
         $stats = $service->stats();
         $epStats = $stats->endpoints[0];
         self::assertNull($epStats->data);
+
+        $service->stop();
+    }
+
+    public function testThrowingStatsHandlerIsRecordedInsteadOfEscaping(): void
+    {
+        $service = Service::create($this->conn, new ServiceConfig(
+            name: 'stats-throwing-handler',
+            version: '1.0.0',
+            statsHandler: function (): never {
+                throw new \RuntimeException('stats boom');
+            },
+        ));
+
+        $service->addEndpoint('ping', function ($req): void {
+            $req->respond('pong');
+        });
+
+        $this->conn->request('ping', '', 2.0);
+
+        try {
+            $this->conn->request('$SRV.STATS.stats-throwing-handler', '', 0.2);
+            self::fail('Expected stats request to time out when stats handler throws');
+        } catch (TimeoutException) {
+            self::assertSame('stats boom', $service->lastError()?->getMessage());
+        }
 
         $service->stop();
     }
