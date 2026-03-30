@@ -271,6 +271,39 @@ final class ObjectStoreTest extends TestCase
         self::assertSame('version 2', $content);
     }
 
+    public function testNamesWithSlashesAndUnderscoresDoNotCollide(): void
+    {
+        $store = $this->createStore();
+
+        $store->putBytes('a_b', 'underscore');
+        $store->putBytes('a/b', 'slash');
+
+        self::assertSame('underscore', $store->getBytes('a_b'));
+        self::assertSame('slash', $store->getBytes('a/b'));
+
+        $names = array_map(static fn($object) => $object->name, $store->list());
+        sort($names);
+
+        self::assertSame(['a/b', 'a_b'], $names);
+    }
+
+    public function testUpdateMetaRenameRemovesOldName(): void
+    {
+        $store = $this->createStore();
+
+        $store->putBytes('old.txt', 'payload');
+        $updated = $store->updateMeta('old.txt', new ObjectMeta(
+            name: 'new.txt',
+            description: 'renamed',
+        ));
+
+        self::assertSame('new.txt', $updated->name);
+        self::assertSame('payload', $store->getBytes('new.txt'));
+
+        $this->expectException(\Sofascore\Nats\NatsException::class);
+        $store->getBytes('old.txt');
+    }
+
     public function testDigestVerification(): void
     {
         $store = $this->createStore();
@@ -296,6 +329,24 @@ final class ObjectStoreTest extends TestCase
             self::assertSame($content, file_get_contents($tmpFile));
         } finally {
             unlink($tmpFile);
+        }
+    }
+
+    public function testGetFailsWhenChunksDisappearMidRead(): void
+    {
+        $store = $this->createStore();
+        $store->putBytes('volatile.bin', str_repeat('ABCDEFGH', 32));
+
+        $result = $store->get('volatile.bin');
+
+        try {
+            $store->delete('volatile.bin');
+
+            $this->expectException(\Sofascore\Nats\NatsException::class);
+            $this->expectExceptionMessage('Object read incomplete');
+            $result->readAll();
+        } finally {
+            $result->close();
         }
     }
 }

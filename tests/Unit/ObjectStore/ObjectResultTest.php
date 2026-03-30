@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Sofascore\Nats\Tests\Unit\ObjectStore;
 
 use PHPUnit\Framework\TestCase;
+use Sofascore\Nats\NatsException;
 use Sofascore\Nats\ObjectStore\ObjectInfo;
 use Sofascore\Nats\ObjectStore\ObjectResult;
 
@@ -14,7 +15,7 @@ final class ObjectResultTest extends TestCase
     {
         $cleanupCalls = 0;
         $result = new ObjectResult(
-            $this->createInfo(size: 11),
+            $this->createInfo(data: 'hello world', chunks: 3),
             static function (): \Generator {
                 yield 'hello';
                 yield ' ';
@@ -35,7 +36,7 @@ final class ObjectResultTest extends TestCase
     public function testWriteToStreamsRemainingContent(): void
     {
         $result = new ObjectResult(
-            $this->createInfo(size: 10),
+            $this->createInfo(data: 'abcdefghij', chunks: 3),
             static function (): \Generator {
                 yield 'abc';
                 yield 'defg';
@@ -63,7 +64,7 @@ final class ObjectResultTest extends TestCase
     {
         $cleanupCalls = 0;
         $result = new ObjectResult(
-            $this->createInfo(size: 5),
+            $this->createInfo(data: 'hello', chunks: 1),
             static function (): \Generator {
                 yield 'hello';
             },
@@ -79,15 +80,45 @@ final class ObjectResultTest extends TestCase
         self::assertSame('', $result->readAll());
     }
 
-    private function createInfo(int $size): ObjectInfo
+    public function testReadAllThrowsWhenStreamEndsBeforeExpectedBytes(): void
+    {
+        $result = new ObjectResult(
+            $this->createInfo(data: 'hello world', chunks: 3),
+            static function (): \Generator {
+                yield 'hello';
+            },
+        );
+
+        $this->expectException(NatsException::class);
+        $this->expectExceptionMessage('Object read incomplete');
+
+        $result->readAll();
+    }
+
+    public function testReadAllThrowsOnDigestMismatch(): void
+    {
+        $result = new ObjectResult(
+            $this->createInfo(data: 'hello', chunks: 1, digest: 'SHA-256=invalid'),
+            static function (): \Generator {
+                yield 'hello';
+            },
+        );
+
+        $this->expectException(NatsException::class);
+        $this->expectExceptionMessage('Object digest mismatch');
+
+        $result->readAll();
+    }
+
+    private function createInfo(string $data, int $chunks, ?string $digest = null): ObjectInfo
     {
         return new ObjectInfo(
             name: 'file.bin',
             bucket: 'files',
             nuid: 'nuid',
-            size: $size,
-            chunks: 1,
-            digest: 'SHA-256=test',
+            size: strlen($data),
+            chunks: $chunks,
+            digest: $digest ?? 'SHA-256=' . base64_encode(hash('sha256', $data, true)),
             deleted: false,
         );
     }
