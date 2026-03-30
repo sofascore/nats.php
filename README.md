@@ -53,7 +53,7 @@ For full runnable scripts grouped by feature, see the example files below. That 
 | **Event Handlers** | onConnect, onDisconnect, onReconnect, onClose, onError, onLameDuckMode, onDiscoveredServers |
 | **JetStream Streams** | Create, createOrUpdate, update, delete, purge, info (with filters), list, getMessage, directGet, secureDelete, mirrors, sources, subject transforms |
 | **JetStream Consumers** | Pull (fetch/fetchBytes/fetchNoWait/next/poll/consumeLoop), push, ordered, durable, pause/resume, priority groups |
-| **JetStream Publish** | Sync/async (with pending tracking), deduplication (msgId), per-message TTL, optimistic concurrency, retry, stallWait |
+| **JetStream Publish** | Synchronous publish acknowledgements, deduplication (msgId), per-message TTL, optimistic concurrency, retry, stallWait |
 | **Key-Value Store** | Put, get, getRevision, create (CAS + TTL), update (CAS), delete, purge (+ TTL), purgeDeletes, history, watch, watchFiltered, listKeys, listKeysFiltered, bucket CRUD |
 | **Object Store** | Put (bytes/string/file), get, getInfo, delete, list (+ showDeleted), addLink, addBucketLink, seal, watch, chunked transfer, metadata, compression |
 | **Micro Services** | Endpoints, groups, discovery ($SRV.PING/INFO/STATS), statistics, pending limits, handler classes |
@@ -62,7 +62,6 @@ For full runnable scripts grouped by feature, see the example files below. That 
 
 - **`readonly` classes** for all immutable data (configs, entries, info, metadata)
 - **Backed string enums** for all policy types — JSON serialize/deserialize friendly
-- **Future-based** async publish acknowledgements (`publishAsync` / `PubAckFuture`)
 - **Generator/IteratorAggregate** for streaming, watch APIs, and pagination
 - **Context-based** consumption APIs (`consume`, `messages`, `watch`)
 - **`stream_socket_client`** for TCP — zero dependencies, select-driven reads, TLS
@@ -92,10 +91,10 @@ For full runnable scripts grouped by feature, see the example files below. That 
 |---------|-------------|
 | [01-streams.php](docs/examples/jetstream/01-streams.php) | Create, info, getMessage, purge, list, delete |
 | [02-consumers.php](docs/examples/jetstream/02-consumers.php) | Pull fetch/next/messages/consume, ConsumeContext, ordered, ACK variants |
-| [03-publish.php](docs/examples/jetstream/03-publish.php) | Deduplication, optimistic concurrency, async publish |
+| [03-publish.php](docs/examples/jetstream/03-publish.php) | Deduplication, optimistic concurrency, sync publish |
 | [04-streams-advanced.php](docs/examples/jetstream/04-streams-advanced.php) | CreateOrUpdate, streamNameBySubject, secureDelete, mirrors, sources, subject transforms |
 | [05-consumers-advanced.php](docs/examples/jetstream/05-consumers-advanced.php) | Pause/resume, push consumer CRUD/consume, backoff, fetchBytes, headersOnly |
-| [06-publish-advanced.php](docs/examples/jetstream/06-publish-advanced.php) | Async lifecycle, msgTtl, expectLastMsgId, stallWait, publishMessage |
+| [06-publish-advanced.php](docs/examples/jetstream/06-publish-advanced.php) | msgTtl, expectLastMsgId, stallWait, publishMessage |
 | [07-direct-get.php](docs/examples/jetstream/07-direct-get.php) | Direct message access, account info, fast lookups |
 
 ### Key-Value
@@ -405,14 +404,9 @@ $js->publish('orders.new', $data, PublishOptions::msgId('order-1'));
 $js->publish('orders.new', $data, PublishOptions::expectLastSequence(42));
 $js->publish('orders.new', $data, PublishOptions::expectStream('ORDERS'));
 
-// Async
-$future = $js->publishAsync('orders.new', $data);
-$conn->process(0.5);
-$ack = $future->ok();
+// Synchronous publish acknowledgements
+$ack = $js->publish('orders.new', $data);
 ```
-
-`publishAsync()` returns immediately and the future completes when the connection
-processes incoming replies via `process()`, `wait()`, or your own application loop.
 
 ### Key-Value Store
 
@@ -549,7 +543,7 @@ src/
 ├── JetStream/                  # Streams, consumers, publish, iterators
 │   ├── Stream/                 # StreamConfig, StreamInfo, Stream
 │   ├── Consumer/               # ConsumerConfig, fetch/consume/messages
-│   ├── Publish/                # PubAck, PubAckFuture, PublishOptions
+│   ├── Publish/                # PubAck, PublishOptions
 │   ├── Message/                # JetStreamMessage (ack/nak/term)
 │   └── Iterator/               # Paginated list iterators
 ├── KeyValue/                   # KV store, watch, history

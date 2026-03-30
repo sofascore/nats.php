@@ -10,8 +10,6 @@ readonly class JetStreamOptions
         public ?string $apiPrefix = null,
         public ?string $domain = null,
         public float $timeout = 5.0,
-        public int $publishAsyncMaxPending = 4096,
-        public ?\Closure $publishAsyncErrHandler = null,
         public int $apiRetries = 0,
         public float $apiRetryWait = 0.25,
     ) {

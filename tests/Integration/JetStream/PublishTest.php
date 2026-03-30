@@ -118,21 +118,6 @@ final class PublishTest extends TestCase
         self::assertGreaterThanOrEqual(1, $ack->sequence);
     }
 
-    public function testPublishAsync(): void
-    {
-        $future = $this->js->publishAsync('test.pub.async', 'async data');
-
-        self::assertFalse($future->isComplete());
-
-        // Drive the event loop to receive the ack
-        $this->conn->process(1.0);
-
-        if ($future->isComplete()) {
-            $ack = $future->ok();
-            self::assertSame('TEST_PUB', $ack->stream);
-        }
-    }
-
     public function testPublishEmptyPayload(): void
     {
         $ack = $this->js->publish('test.pub.empty', '');
