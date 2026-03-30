@@ -121,6 +121,25 @@ final class OrderedConsumerTest extends TestCase
         self::assertNotSame($initialName, $consumer->cachedInfo()->name);
     }
 
+    public function testOrderedConsumerInfoRecoversAfterConsumerDeletion(): void
+    {
+        $consumer = $this->stream->orderedConsumer(new OrderedConsumerConfig(
+            deliverPolicy: DeliveryPolicy::All,
+        ));
+
+        $first = $consumer->next(1.0);
+        $initialName = $consumer->cachedInfo()->name;
+
+        self::assertSame(1, $first->metadata()->streamSequence);
+
+        $this->stream->deleteConsumer($initialName);
+
+        $info = $consumer->info();
+
+        self::assertNotSame($initialName, $info->name);
+        self::assertSame($info->name, $consumer->cachedInfo()->name);
+    }
+
     public function testOrderedConsumerHonorsConfiguredResetAttemptLimit(): void
     {
         $consumer = $this->stream->orderedConsumer(new OrderedConsumerConfig(

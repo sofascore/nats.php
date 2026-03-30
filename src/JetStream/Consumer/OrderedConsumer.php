@@ -92,7 +92,17 @@ final class OrderedConsumer implements ConsumerInterface
 
     public function info(): ConsumerInfo
     {
-        return $this->getInner()->info();
+        try {
+            return $this->getInner()->info();
+        } catch (JetStreamException $error) {
+            if (!$this->isMissingConsumerError($error)) {
+                throw $error;
+            }
+
+            $this->recreateConsumer($this->streamSequence);
+
+            return $this->getInner()->info();
+        }
     }
 
     public function cachedInfo(): ConsumerInfo
@@ -444,6 +454,21 @@ final class OrderedConsumer implements ConsumerInterface
         } catch (JetStreamException) {
             return false;
         }
+    }
+
+    private function isMissingConsumerError(JetStreamException $error): bool
+    {
+        $apiError = $error->apiError;
+        if ($apiError !== null && $apiError->errCode === 10014) {
+            return true;
+        }
+
+        $description = strtolower($apiError !== null ? $apiError->description : $error->getMessage());
+        $code = $apiError !== null ? $apiError->code : $error->getCode();
+
+        return $code === 404
+            && str_contains($description, 'consumer')
+            && str_contains($description, 'not found');
     }
 
     private function recover(float $deadline, int $resumeStreamSequence): void
