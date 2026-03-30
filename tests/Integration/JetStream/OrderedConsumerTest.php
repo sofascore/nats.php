@@ -8,6 +8,7 @@ use PHPUnit\Framework\TestCase;
 use Sofascore\Nats\Connection;
 use Sofascore\Nats\Enum\DeliveryPolicy;
 use Sofascore\Nats\Enum\StorageType;
+use Sofascore\Nats\JetStream\Consumer\FetchOptions;
 use Sofascore\Nats\JetStream\Consumer\OrderedConsumerConfig;
 use Sofascore\Nats\JetStream\JetStreamContext;
 use Sofascore\Nats\JetStream\Stream\StreamConfig;
@@ -86,6 +87,37 @@ final class OrderedConsumerTest extends TestCase
 
         self::assertSame(2, $second->metadata()->streamSequence);
         self::assertSame(1, $second->metadata()->consumerSequence);
+        self::assertNotSame($initialName, $consumer->cachedInfo()->name);
+    }
+
+    public function testOrderedConsumerPreservesLastPerSubjectAcrossRecreation(): void
+    {
+        $this->js->publish('test.ordered.latest.a', 'a1');
+        $this->js->publish('test.ordered.latest.b', 'b1');
+        $this->js->publish('test.ordered.latest.a', 'a2');
+        $this->js->publish('test.ordered.latest.b', 'b2');
+        $this->js->publish('test.ordered.latest.c', 'c1');
+        $this->js->publish('test.ordered.latest.b', 'b3');
+
+        $consumer = $this->stream->orderedConsumer(new OrderedConsumerConfig(
+            deliverPolicy: DeliveryPolicy::LastPerSubject,
+            filterSubject: 'test.ordered.latest.>',
+        ));
+
+        $first = $consumer->next(1.0);
+        $initialName = $consumer->cachedInfo()->name;
+
+        self::assertSame('a2', $first->data());
+
+        $this->stream->deleteConsumer($initialName);
+
+        $batch = $consumer->fetch(10, new FetchOptions(timeout: 1.0));
+        $values = [];
+        foreach ($batch->messages() as $message) {
+            $values[] = $message->data();
+        }
+
+        self::assertSame(['c1', 'b3'], $values);
         self::assertNotSame($initialName, $consumer->cachedInfo()->name);
     }
 

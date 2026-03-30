@@ -11,6 +11,7 @@ use Sofascore\Nats\Internal\TypeCast as T;
 use Sofascore\Nats\JetStream\Error\JetStreamException;
 use Sofascore\Nats\JetStream\JetStreamContext;
 use Sofascore\Nats\JetStream\Message\JetStreamMessage;
+use Sofascore\Nats\JetStream\Message\MessageMetadata;
 use Sofascore\Nats\JetStream\Message\JetStreamMsg;
 use Sofascore\Nats\Message;
 use Sofascore\Nats\NatsException;
@@ -21,6 +22,8 @@ final class OrderedConsumer implements ConsumerInterface
     private ?Consumer $inner = null;
     private int $streamSequence = 0;
     private int $consumerSequence = 0;
+    /** @var array<string, int> */
+    private array $lastSubjectSequences = [];
 
     /** @internal */
     public function __construct(
@@ -100,34 +103,32 @@ final class OrderedConsumer implements ConsumerInterface
     private function getInner(): Consumer
     {
         if ($this->inner === null) {
-            $this->inner = $this->createOrderedConsumer();
+            $this->inner = $this->createOrderedConsumer($this->streamSequence);
+            $this->consumerSequence = 0;
         }
 
         return $this->inner;
     }
 
-    private function createOrderedConsumer(): Consumer
+    private function createOrderedConsumer(int $resumeStreamSequence): Consumer
     {
         $filterSubject = $this->config->filterSubject;
         $filterSubjects = $this->config->filterSubjects;
         if (
-            $this->streamSequence === 0
-            && $this->config->deliverPolicy === DeliveryPolicy::LastPerSubject
+            $this->isLastPerSubject()
             && $filterSubject === null
             && $filterSubjects === []
         ) {
             $filterSubjects = ['>'];
         }
 
-        $deliverPolicy = $this->streamSequence > 0
-            ? DeliveryPolicy::ByStartSequence
-            : $this->config->deliverPolicy;
+        $deliverPolicy = $this->resolveDeliverPolicy($resumeStreamSequence);
 
         $consumerConfig = new ConsumerConfig(
             name: Inbox::nuid(),
             deliverPolicy: $deliverPolicy,
-            optStartSeq: $this->resolveOptStartSeq($deliverPolicy),
-            optStartTime: $this->resolveOptStartTime($deliverPolicy),
+            optStartSeq: $this->resolveOptStartSeq($resumeStreamSequence, $deliverPolicy),
+            optStartTime: $this->resolveOptStartTime($resumeStreamSequence, $deliverPolicy),
             ackPolicy: AckPolicy::None,
             replicas: 1,
             headersOnly: $this->config->headersOnly,
@@ -150,10 +151,19 @@ final class OrderedConsumer implements ConsumerInterface
         );
     }
 
-    private function resolveOptStartSeq(DeliveryPolicy $deliverPolicy): ?int
+    private function resolveDeliverPolicy(int $resumeStreamSequence): DeliveryPolicy
     {
-        if ($this->streamSequence > 0) {
-            return $this->streamSequence + 1;
+        if ($resumeStreamSequence > 0 && !$this->isLastPerSubject()) {
+            return DeliveryPolicy::ByStartSequence;
+        }
+
+        return $this->config->deliverPolicy;
+    }
+
+    private function resolveOptStartSeq(int $resumeStreamSequence, DeliveryPolicy $deliverPolicy): ?int
+    {
+        if ($resumeStreamSequence > 0 && $deliverPolicy === DeliveryPolicy::ByStartSequence) {
+            return $resumeStreamSequence + 1;
         }
 
         return $deliverPolicy === DeliveryPolicy::ByStartSequence
@@ -161,9 +171,9 @@ final class OrderedConsumer implements ConsumerInterface
             : null;
     }
 
-    private function resolveOptStartTime(DeliveryPolicy $deliverPolicy): ?\DateTimeImmutable
+    private function resolveOptStartTime(int $resumeStreamSequence, DeliveryPolicy $deliverPolicy): ?\DateTimeImmutable
     {
-        if ($this->streamSequence > 0) {
+        if ($resumeStreamSequence > 0) {
             return null;
         }
 
@@ -178,6 +188,9 @@ final class OrderedConsumer implements ConsumerInterface
         $deadline = microtime(true) + $opts->timeout;
         $received = 0;
         $totalBytes = 0;
+        $tentativeStreamSequence = $this->streamSequence;
+        $tentativeConsumerSequence = $this->inner === null ? 0 : $this->consumerSequence;
+        $tentativeSubjectSequences = $this->lastSubjectSequences;
 
         while ($received < $limit && ($maxBytes === null || $totalBytes < $maxBytes)) {
             $remainingTimeout = $noWait
@@ -202,14 +215,24 @@ final class OrderedConsumer implements ConsumerInterface
 
             $needsReset = false;
             foreach ($pullResult['messages'] as $message) {
-                if (!$this->acceptMessage($message)) {
+                $metadata = $message->metadata();
+                if ($metadata->consumerSequence !== $tentativeConsumerSequence + 1) {
                     $needsReset = true;
                     break;
+                }
+
+                $tentativeConsumerSequence = $metadata->consumerSequence;
+                if ($this->shouldSkipMessage($message, $metadata, $tentativeSubjectSequences)) {
+                    continue;
                 }
 
                 $batch->addMessage($message);
                 $received++;
                 $totalBytes += strlen($message->data());
+                $tentativeStreamSequence = $metadata->streamSequence;
+                if ($this->isLastPerSubject()) {
+                    $tentativeSubjectSequences[$message->subject()] = $metadata->streamSequence;
+                }
 
                 if ($received >= $limit || ($maxBytes !== null && $totalBytes >= $maxBytes)) {
                     break;
@@ -221,7 +244,8 @@ final class OrderedConsumer implements ConsumerInterface
             }
 
             if ($needsReset || $this->shouldRecover($pullResult['status'])) {
-                $this->recover($deadline);
+                $this->recover($deadline, $tentativeStreamSequence);
+                $tentativeConsumerSequence = 0;
                 continue;
             }
 
@@ -230,7 +254,8 @@ final class OrderedConsumer implements ConsumerInterface
                 && $pullResult['messages'] === []
                 && !$this->currentConsumerExists()
             ) {
-                $this->recover($deadline);
+                $this->recover($deadline, $tentativeStreamSequence);
+                $tentativeConsumerSequence = 0;
                 continue;
             }
 
@@ -239,6 +264,9 @@ final class OrderedConsumer implements ConsumerInterface
             }
         }
 
+        $this->streamSequence = $tentativeStreamSequence;
+        $this->consumerSequence = $tentativeConsumerSequence;
+        $this->lastSubjectSequences = $tentativeSubjectSequences;
         $batch->setComplete();
 
         return $batch;
@@ -354,17 +382,24 @@ final class OrderedConsumer implements ConsumerInterface
         ];
     }
 
-    private function acceptMessage(JetStreamMessage $message): bool
-    {
-        $metadata = $message->metadata();
-        if ($metadata->consumerSequence !== $this->consumerSequence + 1) {
+    /**
+     * @param array<string, int> $subjectSequences
+     */
+    private function shouldSkipMessage(
+        JetStreamMessage $message,
+        MessageMetadata $metadata,
+        array $subjectSequences,
+    ): bool {
+        if (!$this->isLastPerSubject()) {
             return false;
         }
 
-        $this->consumerSequence = $metadata->consumerSequence;
-        $this->streamSequence = $metadata->streamSequence;
+        return $metadata->streamSequence <= ($subjectSequences[$message->subject()] ?? 0);
+    }
 
-        return true;
+    private function isLastPerSubject(): bool
+    {
+        return $this->config->deliverPolicy === DeliveryPolicy::LastPerSubject;
     }
 
     /**
@@ -411,7 +446,7 @@ final class OrderedConsumer implements ConsumerInterface
         }
     }
 
-    private function recover(float $deadline): void
+    private function recover(float $deadline, int $resumeStreamSequence): void
     {
         $attempts = 0;
         $maxResetAttempts = $this->config->maxResetAttempts;
@@ -421,7 +456,7 @@ final class OrderedConsumer implements ConsumerInterface
             $attempts++;
 
             try {
-                $this->recreateConsumer();
+                $this->recreateConsumer($resumeStreamSequence);
                 return;
             } catch (\Throwable $error) {
                 $lastError = $error;
@@ -445,11 +480,10 @@ final class OrderedConsumer implements ConsumerInterface
         throw new NatsException('Failed to recreate ordered consumer before the pull deadline elapsed', 0, $lastError);
     }
 
-    private function recreateConsumer(): void
+    private function recreateConsumer(int $resumeStreamSequence): void
     {
         $current = $this->inner;
         $this->inner = null;
-        $this->consumerSequence = 0;
 
         if ($current !== null) {
             try {
@@ -458,6 +492,7 @@ final class OrderedConsumer implements ConsumerInterface
             }
         }
 
-        $this->inner = $this->createOrderedConsumer();
+        $this->inner = $this->createOrderedConsumer($resumeStreamSequence);
+        $this->consumerSequence = 0;
     }
 }
