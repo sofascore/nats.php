@@ -11,6 +11,7 @@ use Sofascore\Nats\JetStream\Consumer\ConsumerInterface;
 use Sofascore\Nats\JetStream\Consumer\ConsumerPauseResponse;
 use Sofascore\Nats\JetStream\Consumer\OrderedConsumer;
 use Sofascore\Nats\JetStream\Consumer\OrderedConsumerConfig;
+use Sofascore\Nats\JetStream\Consumer\PushConsumerInterface;
 use Sofascore\Nats\JetStream\JetStreamContext;
 
 final class Stream implements StreamInterface
@@ -62,6 +63,26 @@ final class Stream implements StreamInterface
     public function orderedConsumer(?OrderedConsumerConfig $config = null): ConsumerInterface
     {
         return new OrderedConsumer($this->js, $this->name, $config ?? new OrderedConsumerConfig());
+    }
+
+    public function createPushConsumer(ConsumerConfig $config): PushConsumerInterface
+    {
+        return $this->js->createPushConsumer($this->name, $config);
+    }
+
+    public function updatePushConsumer(ConsumerConfig $config): PushConsumerInterface
+    {
+        return $this->js->updatePushConsumer($this->name, $config);
+    }
+
+    public function createOrUpdatePushConsumer(ConsumerConfig $config): PushConsumerInterface
+    {
+        return $this->js->createOrUpdatePushConsumer($this->name, $config);
+    }
+
+    public function pushConsumer(string $name): PushConsumerInterface
+    {
+        return $this->js->pushConsumer($this->name, $name);
     }
 
     public function deleteConsumer(string $name): void

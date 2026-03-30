@@ -217,7 +217,10 @@ final class JetStreamContext
 
     public function updatePushConsumer(string $stream, ConsumerConfig $config): PushConsumerInterface
     {
-        $consumerName = $config->name ?? $config->durable ?? '';
+        $consumerName = $config->name ?? $config->durable ?? null;
+        if ($consumerName === null || $consumerName === '') {
+            throw new \InvalidArgumentException('updatePushConsumer requires a consumer name or durable identifier');
+        }
         $data = $this->apiRequest(
             "CONSUMER.CREATE.{$stream}.{$consumerName}",
             ['stream_name' => $stream, 'config' => $config->toArray()],

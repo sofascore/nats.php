@@ -11,6 +11,7 @@ use Sofascore\Nats\Inbox;
 use Sofascore\Nats\JetStream\Consumer\ConsumerConfig;
 use Sofascore\Nats\JetStream\Consumer\PushConsumeOptions;
 use Sofascore\Nats\JetStream\Consumer\PushConsumerStatus;
+use Sofascore\Nats\JetStream\Error\JetStreamException;
 use Sofascore\Nats\JetStream\Error\PushConsumerException;
 use Sofascore\Nats\JetStream\JetStreamContext;
 use Sofascore\Nats\JetStream\Message\JetStreamMessage;
@@ -50,7 +51,7 @@ final class PushConsumerTest extends TestCase
     {
         $deliverSubject = Inbox::generate();
 
-        $consumer = $this->js->createPushConsumer('TEST_PUSH', new ConsumerConfig(
+        $consumer = $this->stream->createPushConsumer(new ConsumerConfig(
             deliverSubject: $deliverSubject,
             ackPolicy: AckPolicy::Explicit,
         ));
@@ -86,7 +87,7 @@ final class PushConsumerTest extends TestCase
     {
         $deliverSubject = Inbox::generate();
 
-        $consumer = $this->js->createPushConsumer('TEST_PUSH', new ConsumerConfig(
+        $consumer = $this->stream->createPushConsumer(new ConsumerConfig(
             deliverSubject: $deliverSubject,
             ackPolicy: AckPolicy::Explicit,
             flowControl: true,
@@ -128,7 +129,7 @@ final class PushConsumerTest extends TestCase
     {
         $deliverSubject = Inbox::generate();
 
-        $consumer = $this->js->createPushConsumer('TEST_PUSH', new ConsumerConfig(
+        $consumer = $this->stream->createPushConsumer(new ConsumerConfig(
             deliverSubject: $deliverSubject,
             ackPolicy: AckPolicy::None,
             idleHeartbeat: 0.3,
@@ -166,7 +167,7 @@ final class PushConsumerTest extends TestCase
     {
         $deliverSubject = Inbox::generate();
 
-        $consumer = $this->js->createPushConsumer('TEST_PUSH', new ConsumerConfig(
+        $consumer = $this->stream->createPushConsumer(new ConsumerConfig(
             durable: 'del-push',
             deliverSubject: $deliverSubject,
             ackPolicy: AckPolicy::None,
@@ -184,7 +185,7 @@ final class PushConsumerTest extends TestCase
         );
 
         // Delete the consumer while it's active
-        $this->js->deleteConsumer('TEST_PUSH', 'del-push');
+        $this->stream->deleteConsumer('del-push');
 
         // Process — server should send a 409 status
         $deadline = microtime(true) + 3.0;
@@ -212,7 +213,7 @@ final class PushConsumerTest extends TestCase
     {
         $deliverSubject = Inbox::generate();
 
-        $consumer = $this->js->createPushConsumer('TEST_PUSH', new ConsumerConfig(
+        $consumer = $this->stream->createPushConsumer(new ConsumerConfig(
             deliverSubject: $deliverSubject,
             ackPolicy: AckPolicy::None,
         ));
@@ -222,5 +223,85 @@ final class PushConsumerTest extends TestCase
 
         $consumer->unsubscribe();
         self::assertSame(PushConsumerStatus::Closed, $consumer->status());
+    }
+
+    public function testStreamHandlePushConsumerLookupAndDelete(): void
+    {
+        $deliverSubject = Inbox::generate();
+
+        $created = $this->stream->createPushConsumer(new ConsumerConfig(
+            name: 'stream-push',
+            durable: 'stream-push',
+            deliverSubject: $deliverSubject,
+            ackPolicy: AckPolicy::Explicit,
+            maxDeliver: 3,
+        ));
+
+        self::assertSame('stream-push', $created->name());
+        self::assertSame($deliverSubject, $created->deliverSubject());
+
+        $fetched = $this->stream->pushConsumer('stream-push');
+        self::assertSame('stream-push', $fetched->name());
+        self::assertSame($deliverSubject, $fetched->deliverSubject());
+
+        $this->stream->deleteConsumer('stream-push');
+
+        $this->expectException(JetStreamException::class);
+        $this->stream->pushConsumer('stream-push');
+    }
+
+    public function testStreamHandleUpdatePushConsumer(): void
+    {
+        $deliverSubject = Inbox::generate();
+
+        $this->stream->createPushConsumer(new ConsumerConfig(
+            name: 'stream-push',
+            durable: 'stream-push',
+            deliverSubject: $deliverSubject,
+            ackPolicy: AckPolicy::Explicit,
+        ));
+
+        $updated = $this->stream->updatePushConsumer(new ConsumerConfig(
+            name: 'stream-push',
+            durable: 'stream-push',
+            deliverSubject: $deliverSubject,
+            ackPolicy: AckPolicy::Explicit,
+            maxDeliver: 5,
+        ));
+
+        self::assertSame(5, $updated->info()->config->maxDeliver);
+    }
+
+    public function testStreamHandleUpdatePushConsumerRequiresIdentifier(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('updatePushConsumer requires a consumer name or durable identifier');
+
+        $this->stream->updatePushConsumer(new ConsumerConfig(
+            deliverSubject: Inbox::generate(),
+            ackPolicy: AckPolicy::Explicit,
+        ));
+    }
+
+    public function testStreamHandleCreateOrUpdatePushConsumer(): void
+    {
+        $deliverSubject = Inbox::generate();
+
+        $this->stream->createPushConsumer(new ConsumerConfig(
+            name: 'stream-push',
+            durable: 'stream-push',
+            deliverSubject: $deliverSubject,
+            ackPolicy: AckPolicy::Explicit,
+            maxDeliver: 3,
+        ));
+
+        $upserted = $this->stream->createOrUpdatePushConsumer(new ConsumerConfig(
+            name: 'stream-push',
+            durable: 'stream-push',
+            deliverSubject: $deliverSubject,
+            ackPolicy: AckPolicy::Explicit,
+            maxDeliver: 7,
+        ));
+        self::assertSame(7, $upserted->info()->config->maxDeliver);
     }
 }
