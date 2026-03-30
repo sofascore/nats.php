@@ -11,8 +11,8 @@ use Sofascore\Nats\JetStream\Consumer\ConsumerInterface;
 use Sofascore\Nats\JetStream\Consumer\ConsumerPauseResponse;
 use Sofascore\Nats\JetStream\Consumer\OrderedConsumer;
 use Sofascore\Nats\JetStream\Consumer\OrderedConsumerConfig;
-use Sofascore\Nats\JetStream\Error\JetStreamException;
 use Sofascore\Nats\JetStream\Consumer\PushConsumerInterface;
+use Sofascore\Nats\JetStream\Error\JetStreamException;
 use Sofascore\Nats\JetStream\JetStreamContext;
 
 final class Stream implements StreamInterface

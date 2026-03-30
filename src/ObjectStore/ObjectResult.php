@@ -14,7 +14,7 @@ final class ObjectResult
     private bool $sourceExhausted = false;
     private int $bytesRead = 0;
     private int $chunksRead = 0;
-    private readonly \HashContext $hashContext;
+    private ?\HashContext $hashContext;
     /** @var null|\Generator<int, string> */
     private ?\Generator $source = null;
 
@@ -139,7 +139,12 @@ final class ObjectResult
             $this->source->next();
             $this->bytesRead += strlen($chunk);
             $this->chunksRead++;
-            hash_update($this->hashContext, $chunk);
+            $hashContext = $this->hashContext;
+            if ($hashContext === null) {
+                throw new NatsException("Object digest state unavailable: {$this->info->name}");
+            }
+
+            hash_update($hashContext, $chunk);
             return $chunk;
         } catch (\Throwable $error) {
             $this->close();
@@ -153,10 +158,20 @@ final class ObjectResult
             return;
         }
 
-        $this->assertCompleteRead();
+        $error = null;
+        try {
+            $this->assertCompleteRead();
+        } catch (\Throwable $e) {
+            $error = $e;
+        }
+
         $this->sourceExhausted = true;
         $this->source = null;
         $this->runCleanup();
+
+        if ($error !== null) {
+            throw $error;
+        }
     }
 
     private function assertCompleteRead(): void
@@ -172,7 +187,12 @@ final class ObjectResult
             return;
         }
 
+        if ($this->hashContext === null) {
+            throw new NatsException("Object digest state unavailable: {$this->info->name}");
+        }
+
         $actualDigest = 'SHA-256=' . base64_encode(hash_final($this->hashContext, true));
+        $this->hashContext = null;
         if ($actualDigest !== $this->info->digest) {
             throw new NatsException("Object digest mismatch: {$this->info->name}");
         }

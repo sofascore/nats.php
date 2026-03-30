@@ -149,16 +149,7 @@ final class ObjectStore implements ObjectStoreInterface
             );
 
             $this->publishObjectInfo($info);
-
-            if ($existingMetaSubject !== null && $existingMetaSubject !== $this->metaSubject($name)) {
-                try {
-                    $jsStream->purge(new \Sofascore\Nats\JetStream\Stream\StreamPurgeOptions(
-                        filter: $existingMetaSubject,
-                    ));
-                } catch (\Throwable) {
-                    // Best effort cleanup for legacy metadata subjects.
-                }
-            }
+            $this->purgeLegacyMetaSubjectIfNeeded($name, $existingMetaSubject);
         } catch (\Throwable $e) {
             try {
                 $jsStream->purge(new \Sofascore\Nats\JetStream\Stream\StreamPurgeOptions(

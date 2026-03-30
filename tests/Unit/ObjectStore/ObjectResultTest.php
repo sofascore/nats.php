@@ -82,17 +82,46 @@ final class ObjectResultTest extends TestCase
 
     public function testReadAllThrowsWhenStreamEndsBeforeExpectedBytes(): void
     {
+        $cleanupCalls = 0;
         $result = new ObjectResult(
             $this->createInfo(data: 'hello world', chunks: 3),
             static function (): \Generator {
                 yield 'hello';
             },
+            function () use (&$cleanupCalls): void {
+                $cleanupCalls++;
+            },
         );
 
-        $this->expectException(NatsException::class);
-        $this->expectExceptionMessage('Object read incomplete');
+        try {
+            $this->expectException(NatsException::class);
+            $this->expectExceptionMessage('Object read incomplete');
+            $result->readAll();
+        } finally {
+            self::assertSame(1, $cleanupCalls);
+        }
+    }
 
-        $result->readAll();
+    public function testDigestMismatchRunsCleanupOnce(): void
+    {
+        $cleanupCalls = 0;
+        $result = new ObjectResult(
+            $this->createInfo(data: 'hello', chunks: 1, digest: 'SHA-256=invalid'),
+            static function (): \Generator {
+                yield 'hello';
+            },
+            function () use (&$cleanupCalls): void {
+                $cleanupCalls++;
+            },
+        );
+
+        try {
+            $this->expectException(NatsException::class);
+            $this->expectExceptionMessage('Object digest mismatch');
+            $result->readAll();
+        } finally {
+            self::assertSame(1, $cleanupCalls);
+        }
     }
 
     public function testReadAllThrowsOnDigestMismatch(): void
