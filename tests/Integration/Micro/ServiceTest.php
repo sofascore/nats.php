@@ -264,6 +264,8 @@ final class ServiceTest extends TestCase
 
     public function testServiceResetStartsNewStatsWindow(): void
     {
+        $subject = 'svc.reset.window.' . substr(uniqid(), -6);
+
         $svc = Service::create($this->conn, new ServiceConfig(
             name: 'reset-window-svc',
             version: '1.0.0',
@@ -271,9 +273,9 @@ final class ServiceTest extends TestCase
 
         $svc->addEndpoint('fail', function (): void {
             throw new \RuntimeException('boom');
-        }, new EndpointConfig(subject: 'svc.reset.window'));
+        }, new EndpointConfig(subject: $subject));
 
-        $reply = $this->conn->request('svc.reset.window', '', 2.0);
+        $reply = $this->conn->request($subject, '', 2.0);
         self::assertSame('boom', $reply->headers?->get('Nats-Service-Error'));
         self::assertSame('boom', $svc->lastError()?->getMessage());
 
@@ -322,6 +324,45 @@ final class ServiceTest extends TestCase
 
         $svc->stop();
         self::assertTrue($doneCalled);
+    }
+
+    public function testDoneHandlerRunsAfterDeferredStopCleanup(): void
+    {
+        $client = Connection::connect(self::natsUrl());
+        $doneCalled = false;
+        $subscriptionsAtDone = null;
+
+        try {
+            $svc = Service::create($this->conn, new ServiceConfig(
+                name: 'deferred-done-svc',
+                version: '1.0.0',
+                doneHandler: function () use (&$doneCalled, &$subscriptionsAtDone): void {
+                    $doneCalled = true;
+                    $subscriptionsAtDone = $this->conn->numSubscriptions();
+                },
+            ));
+
+            $svc->addEndpoint('bye', function (RequestInterface $req) use ($svc): void {
+                $req->respond('bye');
+                $svc->stop();
+            }, new EndpointConfig(subject: 'svc.done.deferred'));
+
+            $this->conn->flush();
+
+            $replyInbox = $client->newInbox();
+            $replySub = $client->subscribeSync($replyInbox);
+
+            $client->publish('svc.done.deferred', '', $replyInbox);
+            $client->flush();
+            $this->conn->process(0.5);
+            $reply = $replySub->nextMessage(0.5);
+
+            self::assertSame('bye', $reply->data);
+            self::assertTrue($doneCalled);
+            self::assertSame(0, $subscriptionsAtDone);
+        } finally {
+            $client->close();
+        }
     }
 
     public function testStopIsIdempotent(): void
@@ -412,6 +453,32 @@ final class ServiceTest extends TestCase
         $svc->stop();
     }
 
+    public function testThrowingErrorHandlerDoesNotBreakErrorFlow(): void
+    {
+        $svc = Service::create($this->conn, new ServiceConfig(
+            name: 'throwing-error-handler-svc',
+            version: '1.0.0',
+            errorHandler: function (): void {
+                throw new \RuntimeException('error handler exploded');
+            },
+        ));
+
+        $svc->addEndpoint('explode', function (): void {
+            throw new \RuntimeException('handler exploded');
+        }, new EndpointConfig(subject: 'svc.throwing.error.handler'));
+
+        $reply = $this->conn->request('svc.throwing.error.handler', '', 2.0);
+
+        self::assertSame('handler exploded', $reply->headers?->get('Nats-Service-Error'));
+        self::assertSame('handler exploded', $svc->lastError()?->getMessage());
+
+        $stats = $svc->stats();
+        self::assertSame(1, $stats->endpoints[0]->numErrors);
+        self::assertSame('handler exploded', $stats->endpoints[0]->lastError);
+
+        $svc->stop();
+    }
+
     public function testRequestHasRespondedState(): void
     {
         $states = [];
@@ -437,6 +504,8 @@ final class ServiceTest extends TestCase
 
     public function testResponseSendFailureIsObservable(): void
     {
+        $subject = 'svc.response.failure.' . substr(uniqid(), -6);
+
         $svc = Service::create($this->conn, new ServiceConfig(
             name: 'response-failure-svc',
             version: '1.0.0',
@@ -444,11 +513,15 @@ final class ServiceTest extends TestCase
 
         $svc->addEndpoint('reply', function (RequestInterface $req): void {
             $req->respond('ok');
-        }, new EndpointConfig(subject: 'svc.response.failure'));
+        }, new EndpointConfig(subject: $subject));
 
-        $this->conn->publish('svc.response.failure', 'fire-and-forget');
+        $this->conn->publish($subject, 'fire-and-forget');
         $this->conn->flush();
-        $this->conn->process(0.2);
+
+        $deadline = microtime(true) + 1.0;
+        while ($svc->lastError() === null && microtime(true) < $deadline) {
+            $this->conn->process(0.05);
+        }
 
         self::assertSame('No reply subject', $svc->lastError()?->getMessage());
 

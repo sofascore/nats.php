@@ -40,6 +40,7 @@ final class Service implements ServiceInterface
     private ?\Throwable $lastError = null;
     private int $handlerDepth = 0;
     private bool $pendingStopCleanup = false;
+    private bool $doneHandlerCalled = false;
 
     /** @var array<string, array{handler: \Closure|HandlerInterface, config: EndpointConfig, sub: Subscription, stats: array{requests: int, errors: int, processing_time: float, last_error: ?string}}> */
     private array $endpoints = [];
@@ -272,6 +273,7 @@ final class Service implements ServiceInterface
                     foreach ($subs as $sub) {
                         $sub->unsubscribe();
                     }
+                    $this->invokeDoneHandler();
                 }
             } else {
                 $this->pendingStopCleanup = true;
@@ -286,11 +288,17 @@ final class Service implements ServiceInterface
                     'Service stopped without graceful drain because the connection was not connected',
                 ));
             }
+
+            if ($this->handlerDepth > 0) {
+                $this->pendingStopCleanup = true;
+            } else {
+                $this->invokeDoneHandler();
+            }
+            return;
         }
 
-        $doneHandler = $this->config->doneHandler;
-        if ($doneHandler !== null) {
-            $doneHandler($this);
+        if (!$this->pendingStopCleanup) {
+            $this->invokeDoneHandler();
         }
     }
 
@@ -419,7 +427,11 @@ final class Service implements ServiceInterface
 
         $errorHandler = $this->config->errorHandler;
         if ($errorHandler !== null) {
-            $errorHandler($this, $e);
+            try {
+                $errorHandler($this, $e);
+            } catch (\Throwable) {
+                // User error callbacks must not break service cleanup or reply flow.
+            }
         }
     }
 
@@ -440,11 +452,13 @@ final class Service implements ServiceInterface
                 foreach ($subs as $sub) {
                     $sub->unsubscribe();
                 }
+                $this->invokeDoneHandler();
                 return;
             }
         }
 
         $this->finalizeStoppedSubscriptions($subs);
+        $this->invokeDoneHandler();
     }
 
     /**
@@ -460,6 +474,26 @@ final class Service implements ServiceInterface
             if (!$sub->isDrained() && $sub->isValid()) {
                 $sub->unsubscribe();
             }
+        }
+    }
+
+    private function invokeDoneHandler(): void
+    {
+        if ($this->doneHandlerCalled) {
+            return;
+        }
+
+        $this->doneHandlerCalled = true;
+
+        $doneHandler = $this->config->doneHandler;
+        if ($doneHandler === null) {
+            return;
+        }
+
+        try {
+            $doneHandler($this);
+        } catch (\Throwable $e) {
+            $this->recordError($e);
         }
     }
 }
