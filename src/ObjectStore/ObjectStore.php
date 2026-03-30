@@ -732,22 +732,12 @@ final class ObjectStore implements ObjectStoreInterface
 
     private function activeObjectExists(string $name): bool
     {
-        $stream = $this->js->stream($this->streamName());
-
-        foreach ($this->metaSubjectCandidates($name) as $metaSubject) {
-            try {
-                $rawMsg = $stream->getLastMessageForSubject($metaSubject);
-            } catch (\Throwable) {
-                continue;
-            }
-
-            $info = $this->decodeObjectInfo($rawMsg->data);
-            if ($info->name === $name && !$info->deleted) {
-                return true;
-            }
+        try {
+            $this->getObjectInfo($name);
+            return true;
+        } catch (NatsException) {
+            return false;
         }
-
-        return false;
     }
 
     private function purgeLegacyMetaSubjectIfNeeded(string $name, ?string $existingMetaSubject): void
