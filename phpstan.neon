@@ -10,7 +10,3 @@ parameters:
             identifier: if.alwaysFalse
             count: 1
             path: src/JetStream/Consumer/ConsumeContext.php
-        -
-            identifier: booleanOr.rightAlwaysFalse
-            count: 1
-            path: src/JetStream/Consumer/ConsumeContext.php

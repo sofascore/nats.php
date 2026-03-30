@@ -1,4 +1,4 @@
-<?php
+<?php declare(strict_types=1);
 
 /**
  * JetStream Consumers - reading messages from streams.
@@ -12,9 +12,10 @@ require_once __DIR__ . '/../../../vendor/autoload.php';
 use Sofascore\Nats\Connection;
 use Sofascore\Nats\Enum\AckPolicy;
 use Sofascore\Nats\Enum\DeliveryPolicy;
+use Sofascore\Nats\JetStream\Consumer\ConsumeLoopOptions;
 use Sofascore\Nats\JetStream\Consumer\ConsumerConfig;
-use Sofascore\Nats\JetStream\Consumer\ConsumeOptions;
 use Sofascore\Nats\JetStream\Consumer\FetchOptions;
+use Sofascore\Nats\JetStream\Consumer\MessagePollOptions;
 use Sofascore\Nats\JetStream\Consumer\OrderedConsumerConfig;
 use Sofascore\Nats\JetStream\Message\JetStreamMessage;
 use Sofascore\Nats\JetStream\Stream\StreamConfig;
@@ -70,11 +71,11 @@ try {
     echo "No messages.\n";
 }
 
-// --- 5. Messages - iterator-based consumption ---
-// This is a blocking generator over repeated fetch() calls.
-// It is not started in the background automatically.
+// --- 5. Poll - iterator-based consumption ---
+// poll() is a blocking iterator over repeated fetch() calls.
+// It is not a background worker.
 
-$msgs = $consumer->messages(new ConsumeOptions(
+$msgs = $consumer->poll(new MessagePollOptions(
     maxMessages: 10,
     expires: 2.0,
 ));
@@ -91,11 +92,11 @@ foreach ($msgs as $msg) {
     }
 }
 
-echo "Messages context closed: " . ($msgs->isClosed() ? 'yes' : 'no') . "\n";
+echo "Poll context closed: " . ($msgs->isClosed() ? 'yes' : 'no') . "\n";
 
 // Poll one message at a time without exception-driven timeout handling.
 // If maxMessages is greater than 1, tryNext() drains an internal buffer first.
-$poller = $consumer->messages(new ConsumeOptions(
+$poller = $consumer->poll(new MessagePollOptions(
     maxMessages: 1,
     expires: 0.2,
 ));
@@ -105,9 +106,9 @@ while (($msg = $poller->tryNext()) !== null) {
     $msg->ack();
 }
 
-// --- 6. Consume - callback pattern ---
-// consume() creates a context object; it does not start a background worker.
-// You run it explicitly via $ctx->run() from your own process or loop.
+// --- 6. ConsumeLoop - callback pattern ---
+// consumeLoop() prepares a foreground callback loop.
+// You start it explicitly via $ctx->run() from your own process or loop.
 
 $processed = 0;
 $js->publish('events.click', json_encode(['id' => 21]));
@@ -115,14 +116,14 @@ $js->publish('events.click', json_encode(['id' => 22]));
 
 // &$ctx is bound by reference here so the callback can call drain() on the
 // ConsumeContext created by the assignment below.
-$ctx = $consumer->consume(function (JetStreamMessage $msg) use (&$processed, &$ctx) {
+$ctx = $consumer->consumeLoop(function (JetStreamMessage $msg) use (&$processed, &$ctx): void {
     echo "Callback: {$msg->data()}\n";
     $msg->ack();
     $processed++;
     if ($processed >= 2) {
         $ctx->drain();
     }
-}, new ConsumeOptions(maxMessages: 5, expires: 2.0));
+}, new ConsumeLoopOptions(maxMessages: 5, expires: 2.0));
 
 // ConsumeContext methods:
 //   $ctx->stop()      — Stop immediately (may leave buffered messages unprocessed)
@@ -140,7 +141,7 @@ echo "Consumer pending: {$consumerInfo->numPending}\n";
 
 // Run the callback loop in the foreground until drain() stops it.
 $ctx->run();
-echo "Processed via consume(): {$processed}\n";
+echo "Processed via consumeLoop(): {$processed}\n";
 
 // --- 7. ACK variants ---
 

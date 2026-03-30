@@ -6,18 +6,18 @@ namespace Sofascore\Nats\Tests\Unit\JetStream\Consumer;
 
 use PHPUnit\Framework\TestCase;
 use Sofascore\Nats\Headers;
-use Sofascore\Nats\JetStream\Consumer\ConsumeOptions;
 use Sofascore\Nats\JetStream\Consumer\Consumer;
-use Sofascore\Nats\JetStream\Consumer\MessagesContext;
+use Sofascore\Nats\JetStream\Consumer\MessagePollOptions;
+use Sofascore\Nats\JetStream\Consumer\MessagePoller;
 use Sofascore\Nats\JetStream\Message\JetStreamMessage;
 use Sofascore\Nats\JetStream\Message\MessageMetadata;
 
-final class MessagesContextTest extends TestCase
+final class MessagePollerTest extends TestCase
 {
     public function testTryNextReturnsBufferedMessageWithoutThrowing(): void
     {
         $consumer = (new \ReflectionClass(Consumer::class))->newInstanceWithoutConstructor();
-        $context = new MessagesContext($consumer, new ConsumeOptions());
+        $context = new MessagePoller($consumer, new MessagePollOptions());
         $message = $this->message('payload');
 
         $context->addMessage($message);

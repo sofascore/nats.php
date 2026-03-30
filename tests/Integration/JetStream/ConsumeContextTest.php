@@ -7,7 +7,7 @@ namespace Sofascore\Nats\Tests\Integration\JetStream;
 use Sofascore\Nats\Tests\Integration\NatsUrlTrait;
 use Sofascore\Nats\Connection;
 use Sofascore\Nats\JetStream\Consumer\ConsumerConfig;
-use Sofascore\Nats\JetStream\Consumer\ConsumeOptions;
+use Sofascore\Nats\JetStream\Consumer\ConsumeLoopOptions;
 use Sofascore\Nats\JetStream\JetStreamContext;
 use Sofascore\Nats\JetStream\Stream\StreamConfig;
 use PHPUnit\Framework\TestCase;
@@ -43,7 +43,7 @@ final class ConsumeContextTest extends TestCase
             name: 'ctx-consumer',
         ));
 
-        $ctx = $consumer->consume(function ($msg): void {}, new ConsumeOptions(
+        $ctx = $consumer->consumeLoop(function ($msg): void {}, new ConsumeLoopOptions(
             maxMessages: 1,
             expires: 0.5,
         ));
@@ -63,7 +63,7 @@ final class ConsumeContextTest extends TestCase
             name: 'ctx-lasterr',
         ));
 
-        $ctx = $consumer->consume(function ($msg): void {}, new ConsumeOptions(
+        $ctx = $consumer->consumeLoop(function ($msg): void {}, new ConsumeLoopOptions(
             maxMessages: 1,
             expires: 0.5,
         ));
@@ -82,7 +82,7 @@ final class ConsumeContextTest extends TestCase
             name: 'ctx-stopdrain',
         ));
 
-        $ctx = $consumer->consume(function ($msg): void {}, new ConsumeOptions(
+        $ctx = $consumer->consumeLoop(function ($msg): void {}, new ConsumeLoopOptions(
             maxMessages: 1,
             expires: 0.5,
         ));
@@ -104,11 +104,11 @@ final class ConsumeContextTest extends TestCase
         ));
 
         $received = [];
-        $ctx = $consumer->consume(function ($msg) use (&$received, &$ctx): void {
+        $ctx = $consumer->consumeLoop(function ($msg) use (&$received, &$ctx): void {
             $received[] = $msg->data();
             $msg->ack();
             $ctx->drain();  // Drain after first message
-        }, new ConsumeOptions(
+        }, new ConsumeLoopOptions(
             maxMessages: 10,
             expires: 1.0,
         ));

@@ -288,7 +288,12 @@ $stream->purge();
 ### JetStream — Consumers
 
 ```php
-use Sofascore\Nats\JetStream\Consumer\{ConsumerConfig, FetchOptions, ConsumeOptions};
+use Sofascore\Nats\JetStream\Consumer\{
+    ConsumerConfig,
+    ConsumeLoopOptions,
+    FetchOptions,
+    MessagePollOptions,
+};
 use Sofascore\Nats\Enum\{DeliveryPolicy, AckPolicy};
 
 $consumer = $stream->createOrUpdateConsumer(new ConsumerConfig(
@@ -310,18 +315,28 @@ foreach ($batch as $msg) {
 $msg = $consumer->next(timeout: 2.0);
 $msg->ack();
 
-// Iterator (infinite)
-$msgs = $consumer->messages(new ConsumeOptions(maxMessages: 100, expires: 5.0));
+// Pull iterator
+$msgs = $consumer->poll(new MessagePollOptions(maxMessages: 100, expires: 5.0));
 foreach ($msgs as $msg) {
     $msg->ack();
 }
 
 // Poll one message at a time without handling TimeoutException yourself.
 // If you raise maxMessages above 1, the context buffers a fetched batch.
-$poller = $consumer->messages(new ConsumeOptions(maxMessages: 1, expires: 1.0));
+$poller = $consumer->poll(new MessagePollOptions(maxMessages: 1, expires: 1.0));
 while (($msg = $poller->tryNext()) !== null) {
     $msg->ack();
 }
+
+// Foreground callback loop
+$ctx = $consumer->consumeLoop(
+    function ($msg) use (&$ctx): void {
+        $msg->ack();
+        $ctx->drain();
+    },
+    new ConsumeLoopOptions(maxMessages: 1, expires: 1.0),
+);
+$ctx->run();
 
 // ACK variants: ack(), ackSync(), nak(), nakWithDelay(5.0), term(), inProgress()
 ```
@@ -331,8 +346,8 @@ If you are migrating from older queue-style snippets, the modern equivalents are
 | Older pattern | Current API |
 |---|---|
 | `create()->getQueue()->fetchAll(100)` | `fetch(100, ...)` and iterate the batch |
-| `getQueue()->next()` | `next()` or `messages(new ConsumeOptions(maxMessages: 1, ...))->tryNext()` |
-| `handle(...)` | `consume(...)->run()` |
+| `getQueue()->next()` | `next()` or `poll(new MessagePollOptions(maxMessages: 1, ...))->tryNext()` |
+| `handle(...)` | `consumeLoop(...)->run()` |
 
 ### JetStream - Push Consumers
 

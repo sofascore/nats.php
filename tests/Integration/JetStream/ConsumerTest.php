@@ -10,7 +10,7 @@ use Sofascore\Nats\Enum\AckPolicy;
 use Sofascore\Nats\Enum\DeliveryPolicy;
 use Sofascore\Nats\Enum\StorageType;
 use Sofascore\Nats\JetStream\Consumer\ConsumerConfig;
-use Sofascore\Nats\JetStream\Consumer\ConsumeOptions;
+use Sofascore\Nats\JetStream\Consumer\MessagePollOptions;
 use Sofascore\Nats\JetStream\Consumer\FetchOptions;
 use Sofascore\Nats\JetStream\Consumer\OrderedConsumerConfig;
 use Sofascore\Nats\JetStream\JetStreamContext;
@@ -227,7 +227,7 @@ final class ConsumerTest extends TestCase
             ackPolicy: AckPolicy::Explicit,
         ));
 
-        $msgs = $consumer->messages(new ConsumeOptions(
+        $msgs = $consumer->poll(new MessagePollOptions(
             maxMessages: 10,
             expires: 2.0,
         ));
@@ -255,7 +255,7 @@ final class ConsumerTest extends TestCase
             filterSubject: 'test.cons.try-next',
         ));
 
-        $messages = $consumer->messages(new ConsumeOptions(
+        $messages = $consumer->poll(new MessagePollOptions(
             maxMessages: 1,
             expires: 0.2,
         ));
