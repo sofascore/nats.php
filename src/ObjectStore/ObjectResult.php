@@ -4,12 +4,17 @@ declare(strict_types=1);
 
 namespace Sofascore\Nats\ObjectStore;
 
+use Sofascore\Nats\NatsException;
+
 final class ObjectResult
 {
     private string $buffer = '';
     private bool $closed = false;
     private bool $sourceStarted = false;
     private bool $sourceExhausted = false;
+    private int $bytesRead = 0;
+    private int $chunksRead = 0;
+    private ?\HashContext $hashContext;
     /** @var null|\Generator<int, string> */
     private ?\Generator $source = null;
 
@@ -17,7 +22,9 @@ final class ObjectResult
         private readonly ObjectInfo $info,
         private readonly \Closure $sourceFactory,
         private ?\Closure $onClose = null,
-    ) {}
+    ) {
+        $this->hashContext = hash_init('sha256');
+    }
 
     public function read(int $length): string
     {
@@ -130,6 +137,14 @@ final class ObjectResult
         try {
             $chunk = $this->source->current();
             $this->source->next();
+            $this->bytesRead += strlen($chunk);
+            $this->chunksRead++;
+            $hashContext = $this->hashContext;
+            if ($hashContext === null) {
+                throw new NatsException("Object digest state unavailable: {$this->info->name}");
+            }
+
+            hash_update($hashContext, $chunk);
             return $chunk;
         } catch (\Throwable $error) {
             $this->close();
@@ -143,9 +158,44 @@ final class ObjectResult
             return;
         }
 
+        $error = null;
+        try {
+            $this->assertCompleteRead();
+        } catch (\Throwable $e) {
+            $error = $e;
+        }
+
         $this->sourceExhausted = true;
         $this->source = null;
         $this->runCleanup();
+
+        if ($error !== null) {
+            throw $error;
+        }
+    }
+
+    private function assertCompleteRead(): void
+    {
+        $expectedChunks = max(1, $this->info->chunks);
+        if ($this->bytesRead !== $this->info->size || $this->chunksRead !== $expectedChunks) {
+            throw new NatsException(
+                "Object read incomplete: {$this->info->name} ({$this->bytesRead}/{$this->info->size} bytes)"
+            );
+        }
+
+        if ($this->info->digest === '') {
+            return;
+        }
+
+        if ($this->hashContext === null) {
+            throw new NatsException("Object digest state unavailable: {$this->info->name}");
+        }
+
+        $actualDigest = 'SHA-256=' . base64_encode(hash_final($this->hashContext, true));
+        $this->hashContext = null;
+        if ($actualDigest !== $this->info->digest) {
+            throw new NatsException("Object digest mismatch: {$this->info->name}");
+        }
     }
 
     private function runCleanup(): void

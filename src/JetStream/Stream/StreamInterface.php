@@ -46,6 +46,8 @@ interface StreamInterface
 
     public function getLastMessageForSubject(string $subject): RawStreamMessage;
 
+    public function tryGetLastMessageForSubject(string $subject): ?RawStreamMessage;
+
     public function directGet(string $subject, ?int $sequence = null): RawStreamMessage;
 
     public function deleteMessage(int $sequence): void;

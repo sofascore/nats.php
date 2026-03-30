@@ -107,6 +107,23 @@ final class StreamTest extends TestCase
         self::assertSame(2, $rawMsg->sequence);
     }
 
+    public function testTryGetLastMessageForSubject(): void
+    {
+        $stream = $this->js->createStream(new StreamConfig(
+            name: 'TEST_STREAM',
+            subjects: ['test.stream.>'],
+            storage: StorageType::Memory,
+        ));
+
+        self::assertNull($stream->tryGetLastMessageForSubject('test.stream.missing'));
+
+        $this->js->publish('test.stream.foo', 'present');
+
+        $rawMsg = $stream->tryGetLastMessageForSubject('test.stream.foo');
+        self::assertNotNull($rawMsg);
+        self::assertSame('present', $rawMsg->data);
+    }
+
     public function testDeleteMessage(): void
     {
         $stream = $this->js->createStream(new StreamConfig(

@@ -90,10 +90,11 @@ final class ObjectStore implements ObjectStoreInterface
         self::assertReadableStream($stream, $name);
         $chunkSize = self::requirePositiveChunkSize($this->chunkSize);
         $jsStream = $this->js->stream("OBJ_{$this->bucketName}");
+        $existingMetaSubject = null;
 
         // Purge old chunks if overwriting
         try {
-            $existing = $this->getObjectInfo($name);
+            [$existing, $existingMetaSubject] = $this->getObjectInfoRecord($name, showDeleted: true);
             if (!$existing->deleted && $existing->nuid !== '') {
                 $jsStream->purge(new \Sofascore\Nats\JetStream\Stream\StreamPurgeOptions(
                     filter: "\$O.{$this->bucketName}.C.{$existing->nuid}",
@@ -147,16 +148,8 @@ final class ObjectStore implements ObjectStoreInterface
                 mtime: new \DateTimeImmutable(),
             );
 
-            $metaSubject = "\$O.{$this->bucketName}.M.{$this->encodeName($name)}";
-            $metaHeaders = new Headers();
-            $metaHeaders->set('Nats-Rollup', 'sub');
-
-            $msg = new Message(
-                subject: $metaSubject,
-                data: json_encode($info->toArray(), JSON_THROW_ON_ERROR),
-                headers: $metaHeaders,
-            );
-            $this->js->publishMessage($msg);
+            $this->publishObjectInfo($info);
+            $this->purgeLegacyMetaSubjectIfNeeded($name, $existingMetaSubject);
         } catch (\Throwable $e) {
             try {
                 $jsStream->purge(new \Sofascore\Nats\JetStream\Stream\StreamPurgeOptions(
@@ -209,7 +202,7 @@ final class ObjectStore implements ObjectStoreInterface
                     }
 
                     if ($fetched === 0) {
-                        return;
+                        throw new NatsException("Object read incomplete: {$info->name}");
                     }
                 }
             },
@@ -260,11 +253,7 @@ final class ObjectStore implements ObjectStoreInterface
 
     public function getInfo(string $name, bool $showDeleted = false): ObjectInfo
     {
-        $info = $this->getObjectInfo($name);
-        if (!$showDeleted && $info->deleted) {
-            throw new NatsException("Object not found: {$name}");
-        }
-        return $info;
+        return $this->getObjectInfo($name, $showDeleted);
     }
 
     /**
@@ -272,7 +261,7 @@ final class ObjectStore implements ObjectStoreInterface
      */
     public function delete(string $name): void
     {
-        $info = $this->getObjectInfo($name);
+        [$info, $metaSubject] = $this->getObjectInfoRecord($name);
 
         // Purge chunks
         $stream = $this->js->stream("OBJ_{$this->bucketName}");
@@ -291,21 +280,26 @@ final class ObjectStore implements ObjectStoreInterface
             deleted: true,
         );
 
-        $metaSubject = "\$O.{$this->bucketName}.M.{$this->encodeName($name)}";
-        $headers = new Headers();
-        $headers->set('Nats-Rollup', 'sub');
+        $this->publishObjectInfo($deletedInfo);
 
-        $msg = new Message(
-            subject: $metaSubject,
-            data: json_encode($deletedInfo->toArray(), JSON_THROW_ON_ERROR),
-            headers: $headers,
-        );
-        $this->js->publishMessage($msg);
+        if ($metaSubject !== $this->metaSubject($name)) {
+            try {
+                $stream->purge(new \Sofascore\Nats\JetStream\Stream\StreamPurgeOptions(
+                    filter: $metaSubject,
+                ));
+            } catch (\Throwable) {
+                // Best effort cleanup for legacy metadata subjects.
+            }
+        }
     }
 
     public function updateMeta(string $name, ObjectMeta $meta): ObjectInfo
     {
-        $existing = $this->getObjectInfo($name);
+        [$existing, $existingMetaSubject] = $this->getObjectInfoRecord($name);
+
+        if ($name !== $meta->name && $this->activeObjectExists($meta->name)) {
+            throw new NatsException("Object already exists: {$meta->name}");
+        }
 
         $updatedInfo = new ObjectInfo(
             name: $meta->name,
@@ -322,16 +316,13 @@ final class ObjectStore implements ObjectStoreInterface
             metadata: $meta->metadata !== [] ? $meta->metadata : $existing->metadata,
         );
 
-        $metaSubject = "\$O.{$this->bucketName}.M.{$this->encodeName($meta->name)}";
-        $headers = new Headers();
-        $headers->set('Nats-Rollup', 'sub');
+        $this->publishObjectInfo($updatedInfo);
 
-        $msg = new Message(
-            subject: $metaSubject,
-            data: json_encode($updatedInfo->toArray(), JSON_THROW_ON_ERROR),
-            headers: $headers,
-        );
-        $this->js->publishMessage($msg);
+        if ($existingMetaSubject !== $this->metaSubject($meta->name)) {
+            $this->js->stream($this->streamName())->purge(new \Sofascore\Nats\JetStream\Stream\StreamPurgeOptions(
+                filter: $existingMetaSubject,
+            ));
+        }
 
         return $updatedInfo;
     }
@@ -360,17 +351,10 @@ final class ObjectStore implements ObjectStoreInterface
                 name: $target->name,
             ),
         );
+        $previousMetaSubject = $this->existingMetaSubjectOrNull($name);
 
-        $metaSubject = "\$O.{$this->bucketName}.M.{$this->encodeName($name)}";
-        $headers = new Headers();
-        $headers->set('Nats-Rollup', 'sub');
-
-        $msg = new Message(
-            subject: $metaSubject,
-            data: json_encode($linkInfo->toArray(), JSON_THROW_ON_ERROR),
-            headers: $headers,
-        );
-        $this->js->publishMessage($msg);
+        $this->publishObjectInfo($linkInfo);
+        $this->purgeLegacyMetaSubjectIfNeeded($name, $previousMetaSubject);
 
         return $linkInfo;
     }
@@ -390,17 +374,10 @@ final class ObjectStore implements ObjectStoreInterface
                 bucket: $targetStore->bucket(),
             ),
         );
+        $previousMetaSubject = $this->existingMetaSubjectOrNull($name);
 
-        $metaSubject = "\$O.{$this->bucketName}.M.{$this->encodeName($name)}";
-        $headers = new Headers();
-        $headers->set('Nats-Rollup', 'sub');
-
-        $msg = new Message(
-            subject: $metaSubject,
-            data: json_encode($linkInfo->toArray(), JSON_THROW_ON_ERROR),
-            headers: $headers,
-        );
-        $this->js->publishMessage($msg);
+        $this->publishObjectInfo($linkInfo);
+        $this->purgeLegacyMetaSubjectIfNeeded($name, $previousMetaSubject);
 
         return $linkInfo;
     }
@@ -537,10 +514,11 @@ final class ObjectStore implements ObjectStoreInterface
         ?int $chunkSize = null,
     ): ObjectInfo {
         $chunkSize = self::requirePositiveChunkSize($chunkSize ?? $this->chunkSize);
+        $existingMetaSubject = null;
 
         // Purge old chunks if overwriting
         try {
-            $existing = $this->getObjectInfo($name);
+            [$existing, $existingMetaSubject] = $this->getObjectInfoRecord($name, showDeleted: true);
             if (!$existing->deleted && $existing->nuid !== '') {
                 $stream = $this->js->stream("OBJ_{$this->bucketName}");
                 $stream->purge(new \Sofascore\Nats\JetStream\Stream\StreamPurgeOptions(
@@ -590,38 +568,43 @@ final class ObjectStore implements ObjectStoreInterface
             metadata: $metadata,
         );
 
-        // Publish metadata with rollup
-        $metaSubject = "\$O.{$this->bucketName}.M.{$this->encodeName($name)}";
-        $metaHeaders = new Headers();
-        $metaHeaders->set('Nats-Rollup', 'sub');
-
-        $msg = new Message(
-            subject: $metaSubject,
-            data: json_encode($info->toArray(), JSON_THROW_ON_ERROR),
-            headers: $metaHeaders,
-        );
-        $this->js->publishMessage($msg);
+        $this->publishObjectInfo($info);
+        $this->purgeLegacyMetaSubjectIfNeeded($name, $existingMetaSubject);
 
         return $info;
     }
 
-    private function getObjectInfo(string $name): ObjectInfo
+    private function getObjectInfo(string $name, bool $showDeleted = false): ObjectInfo
     {
-        $metaSubject = $this->metaSubject($name);
-        $stream = $this->js->stream($this->streamName());
+        [$info] = $this->getObjectInfoRecord($name, $showDeleted);
+        return $info;
+    }
 
-        try {
-            $rawMsg = $stream->getLastMessageForSubject($metaSubject);
-        } catch (\Throwable) {
+    /**
+     * @return array{ObjectInfo, string}
+     */
+    private function getObjectInfoRecord(string $name, bool $showDeleted = false): array
+    {
+        $record = $this->findObjectInfoRecord($name);
+        if ($record === null) {
             throw new NatsException("Object not found: {$name}");
         }
 
-        return $this->decodeObjectInfo($rawMsg->data);
+        [$info] = $record;
+        if (!$showDeleted && $info->deleted) {
+            throw new NatsException("Object not found: {$name}");
+        }
+
+        return $record;
     }
 
     private function encodeName(string $name): string
     {
-        // Replace special chars that aren't valid in NATS subjects
+        return strtr(base64_encode($name), '+/', '-_');
+    }
+
+    private function encodeLegacyName(string $name): string
+    {
         return str_replace(['/', ' '], ['_', '_'], $name);
     }
 
@@ -685,9 +668,85 @@ final class ObjectStore implements ObjectStoreInterface
         return $this->metaSubjectPrefix() . $this->encodeName($name);
     }
 
+    /**
+     * @return list<string>
+     */
+    private function metaSubjectCandidates(string $name): array
+    {
+        $subjects = [$this->metaSubject($name)];
+        $legacySubject = $this->metaSubjectPrefix() . $this->encodeLegacyName($name);
+
+        if ($legacySubject !== $subjects[0]) {
+            $subjects[] = $legacySubject;
+        }
+
+        return $subjects;
+    }
+
     private function metaSubjectPrefix(): string
     {
         return "\$O.{$this->bucketName}.M.";
+    }
+
+    private function publishObjectInfo(ObjectInfo $info): void
+    {
+        $headers = new Headers();
+        $headers->set('Nats-Rollup', 'sub');
+
+        $this->js->publishMessage(new Message(
+            subject: $this->metaSubject($info->name),
+            data: json_encode($info->toArray(), JSON_THROW_ON_ERROR),
+            headers: $headers,
+        ));
+    }
+
+    private function existingMetaSubjectOrNull(string $name): ?string
+    {
+        $record = $this->findObjectInfoRecord($name);
+        return $record[1] ?? null;
+    }
+
+    private function activeObjectExists(string $name): bool
+    {
+        $record = $this->findObjectInfoRecord($name);
+        return $record !== null && !$record[0]->deleted;
+    }
+
+    private function purgeLegacyMetaSubjectIfNeeded(string $name, ?string $existingMetaSubject): void
+    {
+        if ($existingMetaSubject === null || $existingMetaSubject === $this->metaSubject($name)) {
+            return;
+        }
+
+        try {
+            $this->js->stream($this->streamName())->purge(new \Sofascore\Nats\JetStream\Stream\StreamPurgeOptions(
+                filter: $existingMetaSubject,
+            ));
+        } catch (\Throwable) {
+            // Best effort cleanup for legacy metadata subjects.
+        }
+    }
+
+    /**
+     * @return array{ObjectInfo, string}|null
+     */
+    private function findObjectInfoRecord(string $name): ?array
+    {
+        $stream = $this->js->stream($this->streamName());
+
+        foreach ($this->metaSubjectCandidates($name) as $metaSubject) {
+            $rawMsg = $stream->tryGetLastMessageForSubject($metaSubject);
+            if ($rawMsg === null) {
+                continue;
+            }
+
+            $info = $this->decodeObjectInfo($rawMsg->data);
+            if ($info->name === $name) {
+                return [$info, $metaSubject];
+            }
+        }
+
+        return null;
     }
 
     /**
