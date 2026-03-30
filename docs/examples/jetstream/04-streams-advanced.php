@@ -5,7 +5,8 @@
  *
  * Demonstrates: createOrUpdateStream (idempotent), streamNameBySubject,
  * secureDeleteMessage, stream info with deletedDetails and subjectFilter,
- * StreamConfig new fields (maxConsumers, allowDirect, subjectTransform, consumerLimits),
+ * StreamConfig new fields (maxConsumers, allowDirect, subjectTransform, consumerLimits,
+ * allowAtomicPublish, allowMsgCounter, allowMsgSchedules),
  * mirrors and sources (StreamSource with external), stream purge options (filter, sequence, keep).
  */
 
@@ -193,6 +194,9 @@ $advancedStream = $js->createOrUpdateStream(new StreamConfig(
     allowRollup: true,                          // Allow rollup headers
     discardNewPerSubject: true,                 // Discard new per subject
     allowMsgTtl: true,                          // Allow per-message TTL
+    allowAtomicPublish: true,                   // Allow atomic batch writes
+    allowMsgCounter: true,                      // Enable counter-stream mode
+    allowMsgSchedules: true,                    // Allow scheduled messages
     metadata: ['env' => 'production', 'team' => 'backend'],
     replicas: 1,
 ));

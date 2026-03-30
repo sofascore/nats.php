@@ -30,6 +30,9 @@ final class StreamConfigTest extends TestCase
         self::assertNull($config->consumerLimits);
         self::assertFalse($config->allowMsgTtl);
         self::assertNull($config->subjectDeleteMarkerTtl);
+        self::assertFalse($config->allowAtomicPublish);
+        self::assertFalse($config->allowMsgCounter);
+        self::assertFalse($config->allowMsgSchedules);
     }
 
     public function testConstructorWithAllNewFields(): void
@@ -46,6 +49,9 @@ final class StreamConfigTest extends TestCase
             consumerLimits: $limits,
             allowMsgTtl: true,
             subjectDeleteMarkerTtl: 3600,
+            allowAtomicPublish: true,
+            allowMsgCounter: true,
+            allowMsgSchedules: true,
         );
 
         self::assertSame('full-test', $config->name);
@@ -56,6 +62,9 @@ final class StreamConfigTest extends TestCase
         self::assertSame($limits, $config->consumerLimits);
         self::assertTrue($config->allowMsgTtl);
         self::assertSame(3600, $config->subjectDeleteMarkerTtl);
+        self::assertTrue($config->allowAtomicPublish);
+        self::assertTrue($config->allowMsgCounter);
+        self::assertTrue($config->allowMsgSchedules);
     }
 
     public function testToArraySerializesNewFields(): void
@@ -69,6 +78,9 @@ final class StreamConfigTest extends TestCase
             consumerLimits: new StreamConsumerLimits(inactiveThreshold: 10.0, maxAckPending: 200),
             allowMsgTtl: true,
             subjectDeleteMarkerTtl: 120,
+            allowAtomicPublish: true,
+            allowMsgCounter: true,
+            allowMsgSchedules: true,
         );
 
         $array = $config->toArray();
@@ -82,6 +94,9 @@ final class StreamConfigTest extends TestCase
         self::assertSame(200, $array['consumer_limits']['max_ack_pending']);
         self::assertTrue($array['allow_msg_ttl']);
         self::assertSame(120_000_000_000, $array['subject_delete_marker_ttl']);
+        self::assertTrue($array['allow_atomic_publish']);
+        self::assertTrue($array['allow_msg_counter']);
+        self::assertTrue($array['allow_msg_schedules']);
     }
 
     public function testToArrayOmitsNullNewFields(): void
@@ -95,6 +110,9 @@ final class StreamConfigTest extends TestCase
         self::assertArrayNotHasKey('allow_msg_ttl', $array);
         self::assertArrayNotHasKey('subject_delete_marker_ttl', $array);
         self::assertArrayNotHasKey('mirror_direct', $array);
+        self::assertArrayNotHasKey('allow_atomic_publish', $array);
+        self::assertArrayNotHasKey('allow_msg_counter', $array);
+        self::assertArrayNotHasKey('allow_msg_schedules', $array);
     }
 
     public function testFromArray(): void
@@ -115,6 +133,9 @@ final class StreamConfigTest extends TestCase
             ],
             'allow_msg_ttl' => true,
             'subject_delete_marker_ttl' => 60_000_000_000,
+            'allow_atomic_publish' => true,
+            'allow_msg_counter' => true,
+            'allow_msg_schedules' => true,
         ];
 
         $config = StreamConfig::fromArray($data);
@@ -130,6 +151,9 @@ final class StreamConfigTest extends TestCase
         self::assertSame(100, $config->consumerLimits->maxAckPending);
         self::assertTrue($config->allowMsgTtl);
         self::assertSame(60, $config->subjectDeleteMarkerTtl);
+        self::assertTrue($config->allowAtomicPublish);
+        self::assertTrue($config->allowMsgCounter);
+        self::assertTrue($config->allowMsgSchedules);
     }
 
     public function testRoundTrip(): void
@@ -144,6 +168,9 @@ final class StreamConfigTest extends TestCase
             consumerLimits: new StreamConsumerLimits(inactiveThreshold: 45.0, maxAckPending: 750),
             allowMsgTtl: true,
             subjectDeleteMarkerTtl: 300,
+            allowAtomicPublish: true,
+            allowMsgCounter: true,
+            allowMsgSchedules: true,
         );
 
         $restored = StreamConfig::fromArray($original->toArray());
@@ -159,6 +186,9 @@ final class StreamConfigTest extends TestCase
         self::assertSame($original->consumerLimits->maxAckPending, $restored->consumerLimits->maxAckPending);
         self::assertSame($original->allowMsgTtl, $restored->allowMsgTtl);
         self::assertSame($original->subjectDeleteMarkerTtl, $restored->subjectDeleteMarkerTtl);
+        self::assertSame($original->allowAtomicPublish, $restored->allowAtomicPublish);
+        self::assertSame($original->allowMsgCounter, $restored->allowMsgCounter);
+        self::assertSame($original->allowMsgSchedules, $restored->allowMsgSchedules);
     }
 
     public function testMaxAgeNsConversion(): void

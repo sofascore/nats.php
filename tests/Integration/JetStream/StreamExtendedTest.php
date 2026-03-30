@@ -165,18 +165,36 @@ final class StreamExtendedTest extends TestCase
     {
         $prefix = strtolower($this->streamName);
 
-        $stream = $this->js->createStream(new StreamConfig(
-            name: $this->streamName,
-            subjects: ["{$prefix}.>"],
-            storage: StorageType::Memory,
-            maxConsumers: 10,
-            allowDirect: true,
-            description: 'Stream with extended config',
-        ));
+        try {
+            $stream = $this->js->createStream(new StreamConfig(
+                name: $this->streamName,
+                subjects: ["{$prefix}.>"],
+                storage: StorageType::Memory,
+                maxConsumers: 10,
+                allowDirect: true,
+                description: 'Stream with extended config',
+                allowAtomicPublish: true,
+                allowMsgCounter: true,
+                allowMsgSchedules: true,
+            ));
+        } catch (\Sofascore\Nats\JetStream\Error\JetStreamException $e) {
+            if (str_contains($e->getMessage(), 'unknown')
+                || str_contains($e->getMessage(), 'not supported')
+                || str_contains($e->getMessage(), 'allow_atomic_publish')
+                || str_contains($e->getMessage(), 'allow_msg_counter')
+                || str_contains($e->getMessage(), 'allow_msg_schedules')) {
+                self::markTestSkipped('Newer stream config fields require a NATS server with 2.12 stream support');
+            }
+
+            throw $e;
+        }
 
         $info = $stream->cachedInfo();
         self::assertSame(10, $info->config->maxConsumers);
         self::assertTrue($info->config->allowDirect);
         self::assertSame('Stream with extended config', $info->config->description);
+        self::assertTrue($info->config->allowAtomicPublish);
+        self::assertTrue($info->config->allowMsgCounter);
+        self::assertTrue($info->config->allowMsgSchedules);
     }
 }
