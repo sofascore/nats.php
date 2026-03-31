@@ -18,6 +18,8 @@ interface ServiceInterface
 
     public function stats(): ServiceStats;
 
+    public function lastError(): ?\Throwable;
+
     public function reset(): void;
 
     public function stop(): void;

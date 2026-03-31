@@ -36,6 +36,7 @@ final class Service implements ServiceInterface
     private readonly string $id;
     private readonly \DateTimeImmutable $started;
     private bool $stopped = false;
+    private ?\Throwable $lastError = null;
 
     /** @var array<string, array{handler: \Closure|HandlerInterface, config: EndpointConfig, sub: Subscription, stats: array{requests: int, errors: int, processing_time: float, last_error: ?string}}> */
     private array $endpoints = [];
@@ -105,16 +106,12 @@ final class Service implements ServiceInterface
                 $stats['last_error'] = $e->getMessage();
                 $this->endpoints[$name]['stats'] = $stats;
 
-                $errorHandler = $this->config->errorHandler;
-                if ($errorHandler !== null) {
-                    $errorHandler($this, $e);
-                }
+                $this->recordError($e);
 
-                // Send error response if not already responded
                 try {
                     $request->error('500', $e->getMessage());
-                } catch (\Throwable) {
-                    // Ignore - response may already be sent
+                } catch (\Throwable $sendFailure) {
+                    $this->recordError($sendFailure);
                 }
             }
         };
@@ -244,6 +241,11 @@ final class Service implements ServiceInterface
         }
     }
 
+    public function lastError(): ?\Throwable
+    {
+        return $this->lastError;
+    }
+
     public function stop(): void
     {
         if ($this->stopped) {
@@ -286,6 +288,22 @@ final class Service implements ServiceInterface
     public function version(): string
     {
         return $this->config->version;
+    }
+
+    private function recordError(\Throwable $e): void
+    {
+        $this->lastError = $e;
+
+        $errorHandler = $this->config->errorHandler;
+        if ($errorHandler === null) {
+            return;
+        }
+
+        try {
+            $errorHandler($this, $e);
+        } catch (\Throwable) {
+            // User error handlers must not break service runtime error tracking.
+        }
     }
 
     // --- Internal: control subjects ---
