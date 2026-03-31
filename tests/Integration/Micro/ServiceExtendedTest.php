@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Sofascore\Nats\Tests\Integration\Micro;
 
 use Sofascore\Nats\Connection;
+use Sofascore\Nats\Headers;
 use Sofascore\Nats\Message;
 use Sofascore\Nats\Micro\EndpointConfig;
 use Sofascore\Nats\Micro\RequestInterface;
@@ -78,37 +79,46 @@ final class ServiceExtendedTest extends TestCase
         $svc2->stop();
     }
 
-    public function testRequestMsg(): void
+    public function testRequestExposesInboundMetadataWithoutRawMessage(): void
     {
-        $svcName = 'reqmsg-test-' . substr(uniqid(), -6);
-        $subject = 'svc.reqmsg.' . substr(uniqid(), -6);
+        $svcName = 'reqmeta-test-' . substr(uniqid(), -6);
+        $subject = 'svc.reqmeta.' . substr(uniqid(), -6);
 
-        /** @var Message|null $capturedMsg */
-        $capturedMsg = null;
+        $capturedData = null;
+        $capturedSubject = null;
+        $capturedReplyTo = null;
+        $capturedHeader = null;
 
         $svc = Service::create($this->conn, new ServiceConfig(
             name: $svcName,
             version: '1.0.0',
         ));
 
-        $svc->addEndpoint('echo', function (RequestInterface $req) use (&$capturedMsg): void {
-            // Call msg() to get the underlying Message
-            $capturedMsg = $req->msg();
+        $svc->addEndpoint('echo', function (RequestInterface $req) use (
+            &$capturedData,
+            &$capturedSubject,
+            &$capturedReplyTo,
+            &$capturedHeader,
+        ): void {
+            $capturedData = $req->data();
+            $capturedSubject = $req->subject();
+            $capturedReplyTo = $req->replyTo();
+            $capturedHeader = $req->headers()?->get('X-Request-Id');
 
-            // Respond with the data
             $req->respond('got: ' . $req->data());
         }, new EndpointConfig(subject: $subject));
 
-        $reply = $this->conn->request($subject, 'hello-world', 2.0);
+        $reply = $this->conn->requestMessage(new Message(
+            subject: $subject,
+            data: 'hello-world',
+            headers: new Headers(['X-Request-Id' => 'req-42']),
+        ), 2.0);
 
         self::assertSame('got: hello-world', $reply->data);
-
-        // Verify that msg() returned a Message instance
-        self::assertNotNull($capturedMsg, 'req->msg() should have returned a Message');
-        self::assertInstanceOf(Message::class, $capturedMsg);
-        self::assertSame('hello-world', $capturedMsg->data);
-        self::assertSame($subject, $capturedMsg->subject);
-        self::assertNotNull($capturedMsg->replyTo, 'Request message should have a replyTo subject');
+        self::assertSame('hello-world', $capturedData);
+        self::assertSame($subject, $capturedSubject);
+        self::assertNotNull($capturedReplyTo, 'Request should expose the reply subject');
+        self::assertSame('req-42', $capturedHeader);
 
         $svc->stop();
     }

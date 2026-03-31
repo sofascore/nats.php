@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Sofascore\Nats\Micro;
 
 use Sofascore\Nats\Headers;
-use Sofascore\Nats\Message;
 
 interface RequestInterface
 {
@@ -22,9 +21,4 @@ interface RequestInterface
     public function subject(): string;
 
     public function replyTo(): ?string;
-
-    /**
-     * Returns the raw underlying NATS message.
-     */
-    public function msg(): Message;
 }

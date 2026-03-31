@@ -74,9 +74,4 @@ final class Request implements RequestInterface
     {
         return $this->msg->replyTo;
     }
-
-    public function msg(): Message
-    {
-        return $this->msg;
-    }
 }
