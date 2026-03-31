@@ -8,6 +8,7 @@ use Sofascore\Nats\Connection;
 use Sofascore\Nats\Micro\EndpointConfig;
 use Sofascore\Nats\Micro\HandlerInterface;
 use Sofascore\Nats\Micro\RequestInterface;
+use Sofascore\Nats\NatsException;
 use Sofascore\Nats\Micro\Service;
 use Sofascore\Nats\Micro\ServiceConfig;
 use Sofascore\Nats\Tests\Integration\NatsUrlTrait;
@@ -107,6 +108,98 @@ final class ServiceTest extends TestCase
         self::assertSame('400', $reply->headers->get('Nats-Service-Error-Code'));
 
         $svc->stop();
+    }
+
+    public function testHandlerFailureIsExposedThroughLastErrorAndStats(): void
+    {
+        $subject = 'svc.test.handler-failure.' . substr(uniqid(), -6);
+        $service = Service::create($this->conn, new ServiceConfig(
+            name: 'handler-failure-' . substr(uniqid(), -6),
+            version: '1.0.0',
+        ));
+
+        $service->addEndpoint('fail', function (RequestInterface $req): void {
+            throw new \RuntimeException('handler boom');
+        }, new EndpointConfig(subject: $subject));
+
+        $reply = $this->conn->request($subject, '', 2.0);
+
+        self::assertTrue($reply->hasHeaders());
+        self::assertSame('handler boom', $reply->headers?->get('Nats-Service-Error'));
+        self::assertSame('500', $reply->headers?->get('Nats-Service-Error-Code'));
+
+        $stats = $service->stats();
+        self::assertSame(1, $stats->endpoints[0]->numRequests);
+        self::assertSame(1, $stats->endpoints[0]->numErrors);
+        self::assertSame('handler boom', $stats->endpoints[0]->lastError);
+
+        $lastError = $service->lastError();
+        self::assertInstanceOf(\RuntimeException::class, $lastError);
+        self::assertSame('handler boom', $lastError?->getMessage());
+
+        $service->stop();
+    }
+
+    public function testThrowingErrorHandlerDoesNotBreakErrorFlow(): void
+    {
+        $subject = 'svc.test.throwing-error-handler.' . substr(uniqid(), -6);
+        $errorHandlerCalls = 0;
+        $service = Service::create($this->conn, new ServiceConfig(
+            name: 'throwing-error-handler-' . substr(uniqid(), -6),
+            version: '1.0.0',
+            errorHandler: function (Service $service, \Throwable $e) use (&$errorHandlerCalls): void {
+                $errorHandlerCalls++;
+                throw new \RuntimeException('error handler boom');
+            },
+        ));
+
+        $service->addEndpoint('fail', function (RequestInterface $req): void {
+            throw new \LogicException('primary handler failure');
+        }, new EndpointConfig(subject: $subject));
+
+        $reply = $this->conn->request($subject, '', 2.0);
+
+        self::assertTrue($reply->hasHeaders());
+        self::assertSame('primary handler failure', $reply->headers?->get('Nats-Service-Error'));
+        self::assertSame('500', $reply->headers?->get('Nats-Service-Error-Code'));
+        self::assertSame(1, $errorHandlerCalls);
+
+        $stats = $service->stats();
+        self::assertSame(1, $stats->endpoints[0]->numErrors);
+        self::assertSame('primary handler failure', $stats->endpoints[0]->lastError);
+
+        $lastError = $service->lastError();
+        self::assertInstanceOf(\LogicException::class, $lastError);
+        self::assertSame('primary handler failure', $lastError?->getMessage());
+
+        $service->stop();
+    }
+
+    public function testResponseSendFailureIsObservable(): void
+    {
+        $subject = 'svc.test.response-send-failure.' . substr(uniqid(), -6);
+        $service = Service::create($this->conn, new ServiceConfig(
+            name: 'response-send-failure-' . substr(uniqid(), -6),
+            version: '1.0.0',
+        ));
+
+        $service->addEndpoint('fail', function (RequestInterface $req): void {
+            throw new \RuntimeException('handler boom');
+        }, new EndpointConfig(subject: $subject));
+
+        $this->conn->publish($subject, '');
+        $this->conn->flush();
+
+        $stats = $service->stats();
+        self::assertSame(1, $stats->endpoints[0]->numRequests);
+        self::assertSame(1, $stats->endpoints[0]->numErrors);
+        self::assertSame('handler boom', $stats->endpoints[0]->lastError);
+
+        $lastError = $service->lastError();
+        self::assertInstanceOf(NatsException::class, $lastError);
+        self::assertSame('No reply subject', $lastError?->getMessage());
+
+        $service->stop();
     }
 
     public function testServiceDiscoveryPing(): void
