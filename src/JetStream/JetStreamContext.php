@@ -42,20 +42,24 @@ final class JetStreamContext
     // --- Stream Management ---
 
     /**
+     * @throws \InvalidArgumentException If the stream name is invalid
      * @throws JetStreamException If the stream cannot be created
      */
     public function createStream(StreamConfig $config): StreamInterface
     {
+        $this->validateStreamName($config->name);
         $data = $this->apiRequest('STREAM.CREATE.' . $config->name, $config->toArray());
         $info = StreamInfo::fromArray($data);
         return new Stream($this, $config->name, $info);
     }
 
     /**
+     * @throws \InvalidArgumentException If the stream name is invalid
      * @throws JetStreamException If the stream cannot be updated
      */
     public function updateStream(StreamConfig $config): StreamInterface
     {
+        $this->validateStreamName($config->name);
         $data = $this->apiRequest('STREAM.UPDATE.' . $config->name, $config->toArray());
         $info = StreamInfo::fromArray($data);
         return new Stream($this, $config->name, $info);
@@ -560,6 +564,25 @@ final class JetStreamContext
     }
 
     // --- Private helpers ---
+
+    /**
+     * Validates a JetStream stream name per NATS server rules. Stream names become tokens
+     * in `$JS.API.STREAM.*.<name>` subjects, so they cannot contain anything that would
+     * split a subject token or fail server-side name validation. Sending an invalid name
+     * otherwise surfaces as a request timeout, which is hard to diagnose.
+     */
+    private function validateStreamName(string $name): void
+    {
+        if ($name === '') {
+            throw new \InvalidArgumentException('Stream name cannot be empty');
+        }
+
+        if (preg_match('/[\s.*>\/\\\\\x00-\x1f\x7f]/', $name)) {
+            throw new \InvalidArgumentException(
+                "Invalid stream name '{$name}': cannot contain whitespace, '.', '*', '>', '/', '\\', or control characters",
+            );
+        }
+    }
 
     private function buildKvStreamConfig(\Sofascore\Nats\KeyValue\KeyValueConfig $config): StreamConfig
     {
