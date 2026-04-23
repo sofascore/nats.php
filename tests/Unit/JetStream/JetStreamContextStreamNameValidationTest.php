@@ -64,17 +64,30 @@ final class JetStreamContextStreamNameValidationTest extends TestCase
         yield 'only-space' => [' '];
     }
 
-    public function testInvalidNameMessageMentionsTheName(): void
+    public function testInvalidNameProducesDescriptiveMessage(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('bad name');
-        self::invokeValidate('bad name');
+        try {
+            self::invokeValidate('bad.name');
+            self::fail('Expected InvalidArgumentException');
+        } catch (\InvalidArgumentException $e) {
+            self::assertSame(
+                "Invalid stream name 'bad.name': cannot contain whitespace, '.', '*', '>', '/', '\\', or control characters",
+                $e->getMessage(),
+            );
+            self::assertSame(0, $e->getCode());
+            self::assertNull($e->getPrevious());
+        }
     }
 
-    public function testEmptyNameMessageSaysEmpty(): void
+    public function testEmptyNameProducesDescriptiveMessage(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('empty');
-        self::invokeValidate('');
+        try {
+            self::invokeValidate('');
+            self::fail('Expected InvalidArgumentException');
+        } catch (\InvalidArgumentException $e) {
+            self::assertSame('Stream name cannot be empty', $e->getMessage());
+            self::assertSame(0, $e->getCode());
+            self::assertNull($e->getPrevious());
+        }
     }
 }
